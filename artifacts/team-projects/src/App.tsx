@@ -1,490 +1,316 @@
-import { type FormEvent, useEffect, useRef, useState } from 'react';
+import { type FormEvent, type ReactNode, useEffect, useRef, useState } from 'react';
 import { Link, Route, Switch, useLocation } from 'wouter';
-import { ArrowRight, BookOpen, Check, ChevronRight, ClipboardCheck, FilePenLine, FileText, Languages, LockKeyhole, Save, UserRound, Bell, AlignLeft, Heading1, Heading2 } from 'lucide-react';
+import { ArrowRight, BookOpen, Check, ChevronRight, ClipboardCheck, FilePenLine, FileText, Languages, LockKeyhole, Menu, Save, UserRound, Bell, AlignLeft, Heading1, Heading2, Plus, Trash2, X, Building2, Users, Settings2, CircleCheck, CircleAlert, GraduationCap } from 'lucide-react';
+import { currentStudentId, departmentId, loadStore, type DemoStore, type Proposal, type ProposalStatus, type Role, type UiLanguage } from './demo';
+import { RegistrationFields } from './components/RegistrationFields';
 
-type Language = 'en' | 'fr' | 'ar';
-type Role = 'student' | 'reviewer';
-type Status = 'Draft' | 'Pending Review' | 'Modifications Requested' | 'Approved' | 'Rejected';
-type Proposal = { title:string; field:string; problem:string; objectives:string; methodology:string; outline:string; researchLanguage:string; status:Status; feedback:string };
-type DemoData = { proposal:Proposal; draft:string; notes:string; notifications:string[] };
-
-const starter: DemoData = {
-  proposal: {
-    title:'Digital learning practices in Algerian public universities',
-    field:'Educational technology',
-    problem:'How do access to digital learning resources and students’ study habits shape engagement in blended courses at public universities in Algeria?',
-    objectives:'Map student access to digital learning tools; identify study practices linked to engagement; develop practical recommendations for more inclusive blended learning.',
-    methodology:'A mixed-methods study combining a student survey with semi-structured interviews. The sample will include undergraduate students from two public universities.',
-    outline:'1. Introduction and context\n2. Literature review\n3. Research design\n4. Findings and discussion\n5. Recommendations',
-    researchLanguage:'English', status:'Pending Review', feedback:''
-  },
-  draft:'',
-  notes:'',
-  notifications:['Your proposal is ready for a demo committee review.']
-};
-
-const copy: Record<Language, Record<string,string>> = {
+const words: Record<UiLanguage, Record<string, string>> = {
   en: {
-    home:'Overview', dashboard:'Workspace', proposal:'Research proposal', review:'Committee review', editor:'Writing desk',
-    signIn:'Enter demo', register:'Create demo profile', signInTitle:'Continue with a demo profile', registerTitle:'Create a student demo profile',
-    fullName:'Full name', emailAddress:'Email address', continueDemo:'Continue to demo', cancel:'Cancel',
-    accessNote:'This prototype does not create or verify accounts. Any email is accepted for the demo.',
-    accessRequired:'Add the required demo details to continue.', accessComplete:'Demo profile opened.',
-    defaultNotification:'Your proposal is ready for a demo committee review.', justNow:'Just now', daysAgo:'days ago', localDemoTag:'local demo',
-    researchProposalLabel:'Research proposal', universityResearchLabel:'University research · Algeria', location:'Oran, Algeria',
-    demo:'Demonstration environment', local:'Your information stays in this browser as local demo data. It is not secure storage.',
-    heroEyebrow:'A clearer path from question to research', heroTitle:'Good research starts with a <em>clearer process.</em>',
-    heroText:'Leeder brings your proposal, supervisor feedback and writing milestones into one thoughtful academic workspace — designed for the realities of university life in Algeria.',
-    explore:'Explore the demo', how:'How it works', heroMini:'A focused space for your next research milestone.',
-    featureEyebrow:'A small system for a meaningful journey', featureTitle:'From first idea to first page.',
-    feature1:'Shape your question', feature1d:'Build a structured proposal with the context, objectives and methods visible in one place.',
-    feature2:'Review with context', feature2d:'Explore a simulated committee workflow and see feedback reflected in your student workspace.',
-    feature3:'Write when ready', feature3d:'The writing desk opens only after an approved status in this demo.',
-    welcome:'Good morning,', studentName:'Amel Bensalem', workspace:'Your research, in good order.', workspaceDesc:'A clear view of your proposal journey and what comes next.',
-    editProposal:'Edit proposal', currentStatus:'Proposal status', progress:'Journey progress', profile:'Student profile', academic:'Academic details',
-    university:'University', universityName:'University of Oran 1 Ahmed Ben Bella', department:'Department', departmentName:'Faculty of Social Sciences',
-    degree:'Degree', degreeName:'Master 2 · Educational Sciences', year:'Year', academicField:'Educational Sciences', supervisor:'Supervisor', supervisorRole:'Thesis supervisor',
-    notifications:'Recent updates', noNotifications:'No updates yet. New review activity will appear here.', nextStep:'Next milestone',
-    proposalPageTitle:'Research proposal', proposalPageDesc:'Bring your research question into focus. Your changes are saved on this device.',
-    title:'Working title', field:'Research field', problem:'Problem statement', objectives:'Research objectives', methodology:'Methodology',
-    languageOther:'Other',
-    outline:'Proposed outline', language:'Research language', saveDraft:'Save as draft', submit:'Submit for review', saved:'Saved locally on this device.',
-    required:'Please add a working title and problem statement before submitting.', submitted:'Proposal submitted to the demo review queue.',
-    reviewTitle:'Committee review', reviewDesc:'A simulated review desk for exploring feedback and status changes.',
-    reviewerLabel:'Reviewing as', queue:'Proposal queue', reviewProposal:'Proposal under review', reviewerNotes:'Committee notes', notesHint:'Add a note for the student…',
-    approve:'Approve proposal', requestChanges:'Request modifications', reject:'Reject proposal', actionSaved:'Review decision saved to local demo data.',
-    editorTitle:'Writing desk', editorDesc:'A quiet space for developing your approved research.',
-    lockedTitle:'Writing desk locked', lockedDesc:'This preview opens when the proposal status is Approved. Explore the committee demo to change the status.',
-    unlock:'Open committee review', save:'Save draft', draftSaved:'Writing draft saved locally.', languageDirection:'Writing direction follows the research language.',
-    notes:'Academic notes', noteOne:'Keep one claim per paragraph.', noteTwo:'Connect each section to a research objective.', noteThree:'Record sources as you read.',
-    placeholder:'Begin with a short introduction to your topic…', markTitle:'Title', markHeading:'Heading', markParagraph:'Paragraph',
-    roleStudent:'Student view', roleReviewer:'Reviewer view', roleHint:'Choose a demo role', status:'Status', feedback:'Committee feedback',
-    noFeedback:'No committee feedback yet.', noProposal:'No proposal has been submitted for review.',
-    statusDraft:'Draft', statusPendingReview:'Pending review', statusModifications:'Modifications requested', statusApproved:'Approved', statusRejected:'Rejected',
-    approvedFeedback:'The proposal is approved in this demo.', rejectedFeedback:'The proposal was rejected in this demo.',
-    requestFeedback:'Please clarify the scope and strengthen the link between objectives and methodology.',
-    notFound:'Page not found',
-    stepProfile:'Academic profile', stepProposal:'Proposal submitted', stepReview:'Committee review', stepWriting:'Writing desk',
-    completed:'Complete', underway:'In progress', awaiting:'Awaiting review', available:'Available', draftNotice:'Draft only',
-    honest:'Leeder is an academic project demo. No university authentication, real committee approval, secure document storage or plagiarism detection is provided.',
-    footer:'A student research workflow prototype', reviewerOnly:'Demo reviewer controls', rejectConfirm:'Mark this proposal as rejected?',
-    back:'Back to workspace', profileInitial:'AB', sample:'Sample student profile'
+    home:'Overview', dashboard:'Workspace', proposal:'Research proposal', review:'Review queue', editor:'Writing desk', department:'Department', administration:'Central administration',
+    signIn:'Enter demo', register:'Create demo profile', signInTitle:'Choose a demo view', registerTitle:'Create a demo profile', fullName:'Full name', email:'Email address', continue:'Continue to demo', cancel:'Cancel',
+    demo:'Demonstration environment', local:'All information is saved only in this browser. This is not secure storage.', notSecurity:'Role switching and permissions are demo UI only; they are not authentication or security controls.',
+    heroEyebrow:'A clearer path from question to research', heroTitle:'Good research starts with a <em>clearer process.</em>', heroText:'Leeder brings proposals, supervisor feedback and writing milestones into one academic workspace — designed for university life in Algeria.',
+    explore:'Explore the demo', heroMini:'A focused space for your next research milestone.', featureEyebrow:'A small system for a meaningful journey', featureTitle:'From first idea to first page.', feature1:'Shape your question', feature1d:'Build a structured proposal with the context, objectives and methods visible in one place.', feature2:'Review with context', feature2d:'Follow a sample approval workflow with useful, traceable feedback.', feature3:'Write when ready', feature3d:'The writing desk opens only after every required configured approval step is complete.',
+    welcome:'Welcome,', student:'Student', supervisor:'Academic supervisor', departmentAdmin:'Department administrator', centralAdmin:'Central administrator', rolePreview:'Demo role preview — not a security feature',
+    workspace:'Your research, in good order.', workspaceDesc:'A clear view of your research work and what comes next.', editProposal:'Edit proposal', currentStatus:'Proposal status', progress:'Journey progress', profile:'Profile', academic:'Academic details',
+    university:'University', universityName:'University of Oran 1 Ahmed Ben Bella', departmentName:'Faculty of Social Sciences', degree:'Degree', degreeName:'Master 2 · Educational Sciences', year:'Academic year',
+    notifications:'Recent updates', noNotifications:'No updates yet. New review activity will appear here.', nextStep:'Next milestone', title:'Working title', field:'Research field', problem:'Problem statement', objectives:'Research objectives', methodology:'Methodology', outline:'Proposed outline', language:'Research language', other:'Other',
+    proposalPageDesc:'Bring your research question into focus. Your changes are saved on this device.', saveDraft:'Save as draft', submit:'Submit for review', saved:'Saved locally on this device.', required:'Please add a working title and problem statement before submitting.', submitted:'Proposal submitted to the demo review queue.',
+    reviewTitle:'Review queue', reviewDesc:'Projects assigned to this sample reviewer. Only the current approval step can be advanced.', queue:'Assigned projects', reviewerNotes:'Review comments', notesHint:'Add a useful comment for the student…', approve:'Approve current step', requestChanges:'Request modifications', reject:'Reject proposal', actionSaved:'Decision saved to local demo data.',
+    editorTitle:'Writing desk', editorDesc:'A quiet space for developing your approved research.', lockedTitle:'Writing desk locked', lockedDesc:'This preview opens after the final required step in your department workflow is approved.', unlock:'Open review queue', save:'Save draft', draftSaved:'Writing draft saved locally.', languageDirection:'Direction follows the research language.', noteOne:'Keep one claim per paragraph.', noteTwo:'Connect each section to a research objective.', noteThree:'Record sources as you read.', placeholder:'Begin with a short introduction to your topic…',
+    status:'Status', feedback:'Review feedback', noFeedback:'No review feedback yet.', noProposal:'No proposal has been submitted.', statusDraft:'Draft', statusPending:'Pending review', statusModifications:'Modifications requested', statusApproved:'Approved', statusRejected:'Rejected',
+    stepProfile:'Academic profile', stepProposal:'Proposal submitted', stepReview:'Configured review steps', stepWriting:'Writing desk', completed:'Complete', underway:'In progress', awaiting:'Awaiting review', available:'Available', draftNotice:'Draft only',
+    honest:'Leeder is an academic project demo. No university authentication, real committee approval, secure document storage or email verification is provided.', location:'Oran, Algeria', sample:'Sample profile', footer:'Academic research workspace prototype',
+    studentRegistration:'Student registration', supervisorRegistration:'Supervisor application', registrationRole:'Account type', institution:'Institution', departmentField:'Department', specialization:'Specialization', academicYear:'Academic year', academicTitle:'Academic title', verificationPending:'Email verification pending — simulated only; no email is sent.', supervisorPending:'Pending department approval — simulated demo state.', approvedDemo:'Demo-approved sample account',
+    supervisorDash:'Projects assigned to you', noAssigned:'No assigned projects in this sample view.', people:'Students and proposals', assignSupervisor:'Assign approved supervisor', chooseSupervisor:'Choose a supervisor', assign:'Assign', approveApplication:'Approve application', rejectApplication:'Reject application', pendingApplications:'Pending supervisor applications',
+    academicSettings:'Academic setup', workflow:'Ordered approval workflow', addStep:'Add review step', stepName:'Step label', responsibleRole:'Responsible role', moveUp:'Move up', moveDown:'Move down', remove:'Remove', templates:'Department templates', addTemplate:'Add template', templateName:'Template name', saveChanges:'Save changes',
+    institutions:'Institutions and departments', addInstitution:'Add institution', institutionName:'Institution name', newDepartment:'Department name', add:'Add', admins:'Department administrators', createAdmin:'Provision department admin', pendingCentral:'Pending central approval', approveAdmin:'Approve admin',
+    oversight:'System overview', activity:'Recent activity', participation:'Participation', authorizedRoster:'Authorized supervisor roster', addSupervisor:'Add supervisor to roster', manageInstitutions:'Manage institutions', setupAccount:'Seeded initial-setup preview',
+    currentStep:'Current approval step', completeWorkflow:'All configured approval steps are complete.', finalApproval:'Final step approved — writing desk available.', assignedTo:'Assigned to', comments:'Comments', statusLabel:'State', pending:'Pending', deleteConfirm:'Remove this item from the local demo?', rejectConfirm:'Reject this proposal in the local demo?',
+    arabicNote:'Arabic interface: right-to-left layout. Document language and writing direction remain separate from interface language.', back:'Back to workspace', notFound:'Page not found', profileInitial:'AB', browse:'Browse workspace',
   },
   fr: {
-    home:'Aperçu', dashboard:'Espace étudiant', proposal:'Projet de recherche', review:'Évaluation', editor:'Espace de rédaction',
-    signIn:'Entrer dans la démo', register:'Créer un profil démo', signInTitle:'Continuer avec un profil démo', registerTitle:'Créer un profil étudiant démo',
-    fullName:'Nom complet', emailAddress:'Adresse e-mail', continueDemo:'Continuer dans la démo', cancel:'Annuler',
-    accessNote:'Ce prototype ne crée ni ne vérifie de comptes. Toute adresse e-mail est acceptée pour la démo.',
-    accessRequired:'Renseignez les champs requis pour continuer.', accessComplete:'Profil démo ouvert.',
-    defaultNotification:'Votre projet est prêt pour une évaluation de démonstration.', justNow:'À l’instant', daysAgo:'jours', localDemoTag:'démo locale',
-    researchProposalLabel:'Projet de recherche', universityResearchLabel:'Recherche universitaire · Algérie', location:'Oran, Algérie',
-    demo:'Environnement de démonstration', local:'Vos informations restent dans ce navigateur, comme données de démonstration locales. Ce stockage n’est pas sécurisé.',
-    heroEyebrow:'Un chemin plus clair vers la recherche', heroTitle:'Une bonne recherche commence par un <em>parcours clair.</em>',
-    heroText:'Leeder réunit votre proposition, les retours de votre encadrant et vos étapes de rédaction dans un espace académique pensé pour les réalités universitaires en Algérie.',
-    explore:'Explorer la démo', how:'Le parcours', heroMini:'Un espace serein pour votre prochaine étape de recherche.',
-    featureEyebrow:'Un outil simple pour un parcours essentiel', featureTitle:'De la première idée à la première page.',
-    feature1:'Préciser votre question', feature1d:'Structurez votre projet avec son contexte, ses objectifs et sa méthode.',
-    feature2:'Évaluer avec contexte', feature2d:'Explorez un comité simulé et consultez les retours dans votre espace étudiant.',
-    feature3:'Rédiger au bon moment', feature3d:'Dans cette démo, l’espace de rédaction s’ouvre après approbation.',
-    welcome:'Bonjour,', studentName:'Amel Bensalem', workspace:'Votre recherche, bien organisée.', workspaceDesc:'Suivez votre projet et identifiez la prochaine étape.',
-    editProposal:'Modifier le projet', currentStatus:'État du projet', progress:'Avancement', profile:'Profil étudiant', academic:'Parcours universitaire',
-    university:'Université', universityName:'Université d’Oran 1 Ahmed Ben Bella', department:'Département', departmentName:'Faculté des sciences sociales',
-    degree:'Diplôme', degreeName:'Master 2 · Sciences de l’éducation', year:'Année', academicField:'Sciences de l’éducation', supervisor:'Encadrant', supervisorRole:'Directeur de mémoire',
-    notifications:'Dernières nouvelles', noNotifications:'Aucune nouvelle. Les activités de la commission apparaîtront ici.', nextStep:'Prochaine étape',
-    proposalPageTitle:'Projet de recherche', proposalPageDesc:'Précisez votre question de recherche. Vos modifications sont enregistrées sur cet appareil.',
-    title:'Titre provisoire', field:'Domaine', problem:'Problématique', objectives:'Objectifs de recherche', methodology:'Méthodologie',
-    languageOther:'Autre',
-    outline:'Plan provisoire', language:'Langue de recherche', saveDraft:'Enregistrer le brouillon', submit:'Soumettre à évaluation', saved:'Enregistré localement sur cet appareil.',
-    required:'Veuillez saisir un titre provisoire et une problématique.', submitted:'Projet transmis à la file de révision de démonstration.',
-    reviewTitle:'Évaluation par la commission', reviewDesc:'Un espace de révision simulé pour explorer les retours et les états.',
-    reviewerLabel:'Évaluation en tant que', queue:'File des projets', reviewProposal:'Projet à évaluer', reviewerNotes:'Notes de la commission', notesHint:'Ajouter une note à l’étudiant…',
-    approve:'Approuver le projet', requestChanges:'Demander des modifications', reject:'Refuser le projet', actionSaved:'Décision enregistrée dans les données locales de démonstration.',
-    editorTitle:'Espace de rédaction', editorDesc:'Un espace calme pour développer votre recherche approuvée.',
-    lockedTitle:'Espace de rédaction verrouillé', lockedDesc:'Cet aperçu s’ouvre lorsque le projet est approuvé. Essayez la commission de démonstration.',
-    unlock:'Ouvrir l’évaluation', save:'Enregistrer le brouillon', draftSaved:'Brouillon enregistré localement.', languageDirection:'Le sens d’écriture suit la langue de recherche.',
-    notes:'Notes académiques', noteOne:'Une idée principale par paragraphe.', noteTwo:'Reliez chaque partie à un objectif de recherche.', noteThree:'Notez vos sources au fil de la lecture.',
-    placeholder:'Commencez par une brève introduction à votre sujet…', markTitle:'Titre', markHeading:'Intertitre', markParagraph:'Paragraphe',
-    roleStudent:'Vue étudiant', roleReviewer:'Vue évaluateur', roleHint:'Choisir un rôle démo', status:'État', feedback:'Retour de la commission',
-    noFeedback:'Aucun retour de la commission.', noProposal:'Aucun projet soumis à évaluation.',
-    statusDraft:'Brouillon', statusPendingReview:'En attente d’évaluation', statusModifications:'Modifications demandées', statusApproved:'Approuvé', statusRejected:'Refusé',
-    approvedFeedback:'Le projet est approuvé dans cette démo.', rejectedFeedback:'Le projet est refusé dans cette démo.',
-    requestFeedback:'Veuillez préciser le périmètre et renforcer le lien entre les objectifs et la méthodologie.',
-    notFound:'Page introuvable',
-    stepProfile:'Profil universitaire', stepProposal:'Projet soumis', stepReview:'Évaluation', stepWriting:'Espace de rédaction',
-    completed:'Terminé', underway:'En cours', awaiting:'En attente', available:'Disponible', draftNotice:'Brouillon',
-    honest:'Leeder est une démonstration de projet académique. Aucun accès universitaire, aucune approbation réelle, aucun stockage sécurisé ni détection de plagiat.',
-    footer:'Prototype de parcours de recherche étudiant', reviewerOnly:'Commandes évaluateur démo', rejectConfirm:'Refuser ce projet ?',
-    back:'Retour à l’espace', profileInitial:'AB', sample:'Profil étudiant exemple'
+    home:'Aperçu', dashboard:'Espace de travail', proposal:'Projet de recherche', review:'File d’évaluation', editor:'Espace de rédaction', department:'Département', administration:'Administration centrale',
+    signIn:'Entrer dans la démo', register:'Créer un profil démo', signInTitle:'Choisir une vue démo', registerTitle:'Créer un profil démo', fullName:'Nom complet', email:'Adresse e-mail', continue:'Continuer', cancel:'Annuler',
+    demo:'Environnement de démonstration', local:'Toutes les informations restent dans ce navigateur. Le stockage n’est pas sécurisé.', notSecurity:'Le changement de rôle et les permissions sont uniquement une interface de démonstration, pas une sécurité.',
+    heroEyebrow:'Un chemin plus clair vers la recherche', heroTitle:'Une bonne recherche commence par un <em>parcours clair.</em>', heroText:'Leeder réunit projets, retours d’encadrement et étapes de rédaction dans un espace académique pensé pour l’université en Algérie.',
+    explore:'Explorer la démo', heroMini:'Un espace serein pour votre prochaine étape.', featureEyebrow:'Un outil simple pour un parcours essentiel', featureTitle:'De la première idée à la première page.', feature1:'Préciser la question', feature1d:'Structurez le contexte, les objectifs et la méthode dans un même espace.', feature2:'Évaluer avec contexte', feature2d:'Suivez un circuit d’approbation simulé avec des retours utiles.', feature3:'Rédiger au bon moment', feature3d:'L’espace s’ouvre après toutes les étapes configurées.',
+    welcome:'Bienvenue,', student:'Étudiant', supervisor:'Encadrant universitaire', departmentAdmin:'Administrateur du département', centralAdmin:'Administration centrale', rolePreview:'Prévisualisation démo — pas une fonction de sécurité',
+    workspace:'Votre recherche, bien organisée.', workspaceDesc:'Suivez vos travaux et identifiez la prochaine étape.', editProposal:'Modifier le projet', currentStatus:'État du projet', progress:'Avancement', profile:'Profil', academic:'Parcours universitaire',
+    university:'Université', universityName:'Université d’Oran 1 Ahmed Ben Bella', departmentName:'Faculté des sciences sociales', degree:'Diplôme', degreeName:'Master 2 · Sciences de l’éducation', year:'Année universitaire',
+    notifications:'Dernières nouvelles', noNotifications:'Aucune nouvelle pour le moment.', nextStep:'Prochaine étape', title:'Titre provisoire', field:'Domaine', problem:'Problématique', objectives:'Objectifs', methodology:'Méthodologie', outline:'Plan provisoire', language:'Langue de recherche', other:'Autre',
+    proposalPageDesc:'Précisez votre question de recherche. Les modifications sont enregistrées sur cet appareil.', saveDraft:'Enregistrer le brouillon', submit:'Soumettre à évaluation', saved:'Enregistré localement.', required:'Veuillez saisir un titre et une problématique.', submitted:'Projet transmis à la file démo.',
+    reviewTitle:'File d’évaluation', reviewDesc:'Projets attribués à cet évaluateur démo. Seule l’étape actuelle peut avancer.', queue:'Projets attribués', reviewerNotes:'Commentaires', notesHint:'Ajouter un commentaire utile…', approve:'Approuver l’étape', requestChanges:'Demander des modifications', reject:'Refuser le projet', actionSaved:'Décision enregistrée localement.',
+    editorTitle:'Espace de rédaction', editorDesc:'Un espace calme pour développer votre recherche approuvée.', lockedTitle:'Espace verrouillé', lockedDesc:'Ouvert après l’approbation de la dernière étape configurée.', unlock:'Ouvrir les évaluations', save:'Enregistrer', draftSaved:'Brouillon enregistré localement.', languageDirection:'Le sens suit la langue de recherche.', noteOne:'Une idée principale par paragraphe.', noteTwo:'Reliez chaque partie à un objectif.', noteThree:'Notez vos sources.', placeholder:'Commencez par une brève introduction…',
+    status:'État', feedback:'Retour', noFeedback:'Aucun retour pour le moment.', noProposal:'Aucun projet soumis.', statusDraft:'Brouillon', statusPending:'En attente', statusModifications:'Modifications demandées', statusApproved:'Approuvé', statusRejected:'Refusé',
+    stepProfile:'Profil universitaire', stepProposal:'Projet soumis', stepReview:'Étapes configurées', stepWriting:'Rédaction', completed:'Terminé', underway:'En cours', awaiting:'En attente', available:'Disponible', draftNotice:'Brouillon',
+    honest:'Leeder est une démonstration académique. Aucun accès universitaire, approbation réelle, stockage sécurisé ni vérification d’e-mail.', location:'Oran, Algérie', sample:'Profil exemple', footer:'Prototype d’espace de recherche',
+    studentRegistration:'Inscription étudiante', supervisorRegistration:'Candidature encadrant', registrationRole:'Type de compte', institution:'Établissement', departmentField:'Département', specialization:'Spécialité', academicYear:'Année universitaire', academicTitle:'Titre académique', verificationPending:'Vérification e-mail en attente — simulée, aucun message envoyé.', supervisorPending:'En attente d’approbation du département — état simulé.', approvedDemo:'Compte exemple approuvé',
+    supervisorDash:'Projets attribués', noAssigned:'Aucun projet attribué dans cet exemple.', people:'Étudiants et projets', assignSupervisor:'Attribuer un encadrant approuvé', chooseSupervisor:'Choisir un encadrant', assign:'Attribuer', approveApplication:'Approuver', rejectApplication:'Refuser', pendingApplications:'Candidatures en attente',
+    academicSettings:'Configuration académique', workflow:'Circuit ordonné d’approbation', addStep:'Ajouter une étape', stepName:'Nom de l’étape', responsibleRole:'Rôle responsable', moveUp:'Monter', moveDown:'Descendre', remove:'Supprimer', templates:'Modèles du département', addTemplate:'Ajouter un modèle', templateName:'Nom du modèle', saveChanges:'Enregistrer',
+    institutions:'Établissements et départements', addInstitution:'Ajouter un établissement', institutionName:'Nom de l’établissement', newDepartment:'Nom du département', add:'Ajouter', admins:'Administrateurs de département', createAdmin:'Provisionner un administrateur', pendingCentral:'En attente du central', approveAdmin:'Approuver',
+    oversight:'Vue système', activity:'Activité récente', participation:'Participation', authorizedRoster:'Liste des encadrants autorisés', addSupervisor:'Ajouter à la liste', manageInstitutions:'Gérer les établissements', setupAccount:'Aperçu de configuration initiale',
+    currentStep:'Étape actuelle', completeWorkflow:'Toutes les étapes configurées sont terminées.', finalApproval:'Dernière étape approuvée — rédaction disponible.', assignedTo:'Attribué à', comments:'Commentaires', statusLabel:'État', pending:'En attente', deleteConfirm:'Retirer cet élément de la démo locale ?', rejectConfirm:'Refuser ce projet dans la démo locale ?',
+    arabicNote:'Interface arabe : disposition droite-à-gauche. La langue du document reste indépendante.', back:'Retour à l’espace', notFound:'Page introuvable', profileInitial:'AB', browse:'Voir l’espace',
   },
   ar: {
-    home:'الرئيسية', dashboard:'مساحة الطالب', proposal:'مقترح البحث', review:'مراجعة اللجنة', editor:'مساحة الكتابة',
-    signIn:'دخول تجريبي', register:'إنشاء ملف تجريبي', signInTitle:'المتابعة بملف تجريبي', registerTitle:'إنشاء ملف طالب تجريبي',
-    fullName:'الاسم الكامل', emailAddress:'البريد الإلكتروني', continueDemo:'المتابعة إلى التجربة', cancel:'إلغاء',
-    accessNote:'هذا النموذج لا ينشئ الحسابات ولا يتحقق منها. يُقبل أي بريد إلكتروني لأغراض التجربة.',
-    accessRequired:'يرجى إدخال المعلومات المطلوبة للمتابعة.', accessComplete:'تم فتح الملف التجريبي.',
-    defaultNotification:'المقترح جاهز لمراجعة اللجنة التجريبية.', justNow:'الآن', daysAgo:'أيام مضت', localDemoTag:'نسخة تجريبية محلية',
-    researchProposalLabel:'مقترح بحث', universityResearchLabel:'بحث جامعي · الجزائر', location:'وهران، الجزائر',
-    demo:'بيئة تجريبية', local:'تبقى معلوماتك في هذا المتصفح كبيانات تجريبية محلية. هذا التخزين غير آمن.',
-    heroEyebrow:'مسار أوضح نحو البحث العلمي', heroTitle:'يبدأ البحث الجيد <em>بمسار أوضح.</em>',
-    heroText:'يجمع ليدر مقترحك وملاحظات المشرف ومراحل الكتابة في مساحة أكاديمية تراعي واقع الجامعة في الجزائر.',
-    explore:'استكشف النسخة التجريبية', how:'كيف يعمل', heroMini:'مساحة مركزة لخطوتك البحثية القادمة.',
-    featureEyebrow:'مساحة بسيطة لرحلة مهمة', featureTitle:'من الفكرة الأولى إلى الصفحة الأولى.',
-    feature1:'حدد سؤالك', feature1d:'نظم مقترحك وسياقه وأهدافه ومنهجيته في مكان واحد.',
-    feature2:'مراجعة بسياق واضح', feature2d:'استكشف سير عمل لجنة تجريبية وشاهد الملاحظات في مساحة الطالب.',
-    feature3:'اكتب عندما تكون جاهزاً', feature3d:'تُفتح مساحة الكتابة بعد اعتماد الحالة في هذه التجربة.',
-    welcome:'صباح الخير،', studentName:'أمل بن سالم', workspace:'بحثك، بخطوات واضحة.', workspaceDesc:'تابع تقدم المقترح والخطوة التالية.',
-    editProposal:'تعديل المقترح', currentStatus:'حالة المقترح', progress:'التقدم', profile:'ملف الطالب', academic:'المعلومات الأكاديمية',
-    university:'الجامعة', universityName:'جامعة وهران 1 أحمد بن بلة', department:'القسم', departmentName:'كلية العلوم الاجتماعية',
-    degree:'الدرجة', degreeName:'ماستر 2 · علوم التربية', year:'السنة', academicField:'علوم التربية', supervisor:'المشرف', supervisorRole:'مشرف المذكرة',
-    notifications:'آخر التحديثات', noNotifications:'لا توجد تحديثات حالياً. ستظهر هنا أنشطة المراجعة الجديدة.', nextStep:'المرحلة التالية',
-    proposalPageTitle:'مقترح البحث', proposalPageDesc:'صغ سؤال البحث بوضوح. تحفظ التعديلات على هذا الجهاز.',
-    title:'عنوان مبدئي', field:'المجال البحثي', problem:'إشكالية البحث', objectives:'أهداف البحث', methodology:'المنهجية',
-    languageOther:'أخرى',
-    outline:'الخطة المقترحة', language:'لغة البحث', saveDraft:'حفظ كمسودة', submit:'إرسال للمراجعة', saved:'تم الحفظ محلياً على هذا الجهاز.',
-    required:'يرجى إدخال العنوان والإشكالية قبل الإرسال.', submitted:'تم إرسال المقترح إلى قائمة المراجعة التجريبية.',
-    reviewTitle:'مراجعة اللجنة', reviewDesc:'مساحة مراجعة تجريبية لاستكشاف الملاحظات وتغيير الحالة.',
-    reviewerLabel:'المراجعة بصفة', queue:'قائمة المقترحات', reviewProposal:'المقترح قيد المراجعة', reviewerNotes:'ملاحظات اللجنة', notesHint:'أضف ملاحظة للطالب…',
-    approve:'اعتماد المقترح', requestChanges:'طلب تعديلات', reject:'رفض المقترح', actionSaved:'تم حفظ قرار المراجعة في البيانات التجريبية المحلية.',
-    editorTitle:'مساحة الكتابة', editorDesc:'مساحة هادئة لتطوير بحثك المعتمد.',
-    lockedTitle:'مساحة الكتابة مقفلة', lockedDesc:'تُفتح هذه المعاينة عند اعتماد المقترح. استكشف اللجنة التجريبية لتغيير الحالة.',
-    unlock:'فتح مراجعة اللجنة', save:'حفظ المسودة', draftSaved:'تم حفظ المسودة محلياً.', languageDirection:'اتجاه الكتابة يتبع لغة البحث.',
-    notes:'ملاحظات أكاديمية', noteOne:'اجعل لكل فقرة فكرة رئيسية واحدة.', noteTwo:'اربط كل قسم بهدف بحثي.', noteThree:'دوّن المصادر أثناء القراءة.',
-    placeholder:'ابدأ بمقدمة قصيرة عن موضوعك…', markTitle:'عنوان', markHeading:'عنوان فرعي', markParagraph:'فقرة',
-    roleStudent:'عرض الطالب', roleReviewer:'عرض المراجع', roleHint:'اختر الدور التجريبي', status:'الحالة', feedback:'ملاحظات اللجنة',
-    noFeedback:'لا توجد ملاحظات من اللجنة بعد.', noProposal:'لم يتم إرسال مقترح للمراجعة.',
-    statusDraft:'مسودة', statusPendingReview:'بانتظار المراجعة', statusModifications:'مطلوب تعديلات', statusApproved:'معتمد', statusRejected:'مرفوض',
-    approvedFeedback:'تم اعتماد المقترح في هذه التجربة.', rejectedFeedback:'تم رفض المقترح في هذه التجربة.',
-    requestFeedback:'يرجى توضيح نطاق البحث وتعزيز الصلة بين الأهداف والمنهجية.',
-    notFound:'الصفحة غير موجودة',
-    stepProfile:'الملف الأكاديمي', stepProposal:'إرسال المقترح', stepReview:'مراجعة اللجنة', stepWriting:'مساحة الكتابة',
-    completed:'مكتمل', underway:'قيد التنفيذ', awaiting:'بانتظار المراجعة', available:'متاح', draftNotice:'مسودة',
-    honest:'ليدر نموذج لمشروع أكاديمي. لا يوفر دخولاً جامعياً أو اعتماداً حقيقياً أو تخزيناً آمناً أو كشفاً للانتحال.',
-    footer:'نموذج لمسار بحث الطالب', reviewerOnly:'أدوات المراجع التجريبية', rejectConfirm:'رفض هذا المقترح؟',
-    back:'العودة للمساحة', profileInitial:'أب', sample:'ملف طالب تجريبي'
-  }
+    home:'الرئيسية', dashboard:'مساحة العمل', proposal:'مقترح البحث', review:'قائمة المراجعة', editor:'مساحة الكتابة', department:'القسم', administration:'الإدارة المركزية',
+    signIn:'دخول تجريبي', register:'إنشاء ملف تجريبي', signInTitle:'اختر عرضاً تجريبياً', registerTitle:'إنشاء ملف تجريبي', fullName:'الاسم الكامل', email:'البريد الإلكتروني', continue:'المتابعة للتجربة', cancel:'إلغاء',
+    demo:'بيئة تجريبية', local:'تُحفظ المعلومات في هذا المتصفح فقط. التخزين غير آمن.', notSecurity:'تبديل الدور والصلاحيات واجهة تجريبية فقط وليست مصادقة أو حماية.',
+    heroEyebrow:'مسار أوضح نحو البحث العلمي', heroTitle:'يبدأ البحث الجيد <em>بمسار أوضح.</em>', heroText:'يجمع ليدر المقترحات وملاحظات المشرف ومراحل الكتابة في مساحة أكاديمية تراعي واقع الجامعة في الجزائر.',
+    explore:'استكشف التجربة', heroMini:'مساحة مركزة لخطوتك البحثية القادمة.', featureEyebrow:'مساحة بسيطة لرحلة مهمة', featureTitle:'من الفكرة الأولى إلى الصفحة الأولى.', feature1:'حدد سؤالك', feature1d:'نظم السياق والأهداف والمنهجية في مكان واحد.', feature2:'مراجعة بسياق واضح', feature2d:'تابع سير اعتماد تجريبي مع ملاحظات مفيدة.', feature3:'اكتب عندما تكون جاهزاً', feature3d:'تفتح مساحة الكتابة بعد اكتمال كل مراحل الاعتماد المحددة.',
+    welcome:'مرحباً،', student:'طالب', supervisor:'مشرف أكاديمي', departmentAdmin:'مسؤول القسم', centralAdmin:'الإدارة المركزية', rolePreview:'معاينة دور تجريبية — ليست ميزة أمنية',
+    workspace:'بحثك، بخطوات واضحة.', workspaceDesc:'تابع أعمالك البحثية والخطوة التالية.', editProposal:'تعديل المقترح', currentStatus:'حالة المقترح', progress:'التقدم', profile:'الملف الشخصي', academic:'المعلومات الأكاديمية',
+    university:'الجامعة', universityName:'جامعة وهران 1 أحمد بن بلة', departmentName:'كلية العلوم الاجتماعية', degree:'الدرجة', degreeName:'ماستر 2 · علوم التربية', year:'السنة الجامعية',
+    notifications:'آخر التحديثات', noNotifications:'لا توجد تحديثات حالياً.', nextStep:'المرحلة التالية', title:'عنوان مبدئي', field:'المجال البحثي', problem:'إشكالية البحث', objectives:'أهداف البحث', methodology:'المنهجية', outline:'الخطة المقترحة', language:'لغة البحث', other:'أخرى',
+    proposalPageDesc:'صغ سؤال البحث بوضوح. تحفظ التعديلات على هذا الجهاز.', saveDraft:'حفظ كمسودة', submit:'إرسال للمراجعة', saved:'تم الحفظ محلياً.', required:'يرجى إدخال العنوان والإشكالية.', submitted:'تم إرسال المقترح إلى قائمة المراجعة التجريبية.',
+    reviewTitle:'قائمة المراجعة', reviewDesc:'المشاريع المسندة لهذا المراجع التجريبي. يمكن تقديم المرحلة الحالية فقط.', queue:'المشاريع المسندة', reviewerNotes:'تعليقات المراجعة', notesHint:'أضف تعليقاً مفيداً للطالب…', approve:'اعتماد المرحلة الحالية', requestChanges:'طلب تعديلات', reject:'رفض المقترح', actionSaved:'تم حفظ القرار محلياً.',
+    editorTitle:'مساحة الكتابة', editorDesc:'مساحة هادئة لتطوير بحثك المعتمد.', lockedTitle:'مساحة الكتابة مقفلة', lockedDesc:'تفتح بعد اعتماد آخر مرحلة مطلوبة في سير القسم.', unlock:'فتح قائمة المراجعة', save:'حفظ المسودة', draftSaved:'تم حفظ المسودة محلياً.', languageDirection:'الاتجاه يتبع لغة البحث.', noteOne:'اجعل لكل فقرة فكرة رئيسية واحدة.', noteTwo:'اربط كل قسم بهدف بحثي.', noteThree:'دوّن المصادر أثناء القراءة.', placeholder:'ابدأ بمقدمة قصيرة عن موضوعك…',
+    status:'الحالة', feedback:'ملاحظات المراجعة', noFeedback:'لا توجد ملاحظات بعد.', noProposal:'لم يتم إرسال مقترح.', statusDraft:'مسودة', statusPending:'بانتظار المراجعة', statusModifications:'مطلوب تعديلات', statusApproved:'معتمد', statusRejected:'مرفوض',
+    stepProfile:'الملف الأكاديمي', stepProposal:'إرسال المقترح', stepReview:'مراحل الاعتماد المحددة', stepWriting:'مساحة الكتابة', completed:'مكتمل', underway:'قيد التنفيذ', awaiting:'بانتظار المراجعة', available:'متاح', draftNotice:'مسودة',
+    honest:'ليدر نموذج أكاديمي. لا يوفر دخولاً جامعياً أو اعتماداً حقيقياً أو تخزيناً آمناً أو تحققاً من البريد.', location:'وهران، الجزائر', sample:'ملف تجريبي', footer:'نموذج لمساحة بحث أكاديمي',
+    studentRegistration:'تسجيل طالب', supervisorRegistration:'طلب انضمام مشرف', registrationRole:'نوع الحساب', institution:'المؤسسة', departmentField:'القسم', specialization:'التخصص', academicYear:'السنة الجامعية', academicTitle:'الرتبة الأكاديمية', verificationPending:'التحقق من البريد بانتظار الإجراء — محاكاة فقط، لا يتم إرسال بريد.', supervisorPending:'بانتظار موافقة القسم — حالة تجريبية.', approvedDemo:'حساب عينة معتمد تجريبياً',
+    supervisorDash:'المشاريع المسندة إليك', noAssigned:'لا توجد مشاريع مسندة في هذه العينة.', people:'الطلاب والمقترحات', assignSupervisor:'تعيين مشرف معتمد', chooseSupervisor:'اختر مشرفاً', assign:'تعيين', approveApplication:'موافقة على الطلب', rejectApplication:'رفض الطلب', pendingApplications:'طلبات المشرفين بانتظار الموافقة',
+    academicSettings:'الإعداد الأكاديمي', workflow:'سير اعتماد مرتب', addStep:'إضافة مرحلة مراجعة', stepName:'اسم المرحلة', responsibleRole:'الدور المسؤول', moveUp:'تحريك للأعلى', moveDown:'تحريك للأسفل', remove:'إزالة', templates:'قوالب القسم', addTemplate:'إضافة قالب', templateName:'اسم القالب', saveChanges:'حفظ التغييرات',
+    institutions:'الجامعات والأقسام', addInstitution:'إضافة جامعة', institutionName:'اسم الجامعة', newDepartment:'اسم القسم', add:'إضافة', admins:'مسؤولو الأقسام', createAdmin:'تجهيز مسؤول قسم', pendingCentral:'بانتظار موافقة الإدارة المركزية', approveAdmin:'اعتماد المسؤول',
+    oversight:'نظرة عامة للنظام', activity:'النشاط الأخير', participation:'المشاركة', authorizedRoster:'قائمة المشرفين المعتمدين', addSupervisor:'إضافة للقائمة', manageInstitutions:'إدارة المؤسسات', setupAccount:'معاينة الإعداد الأولي',
+    currentStep:'مرحلة الاعتماد الحالية', completeWorkflow:'اكتملت كل مراحل الاعتماد المحددة.', finalApproval:'اعتماد المرحلة الأخيرة — مساحة الكتابة متاحة.', assignedTo:'مسند إلى', comments:'التعليقات', statusLabel:'الحالة', pending:'قيد الانتظار', deleteConfirm:'إزالة هذا العنصر من النسخة المحلية؟', rejectConfirm:'رفض هذا المقترح في النسخة التجريبية؟',
+    arabicNote:'واجهة عربية باتجاه من اليمين إلى اليسار. تبقى لغة المستند مستقلة عن لغة الواجهة.', back:'العودة لمساحة العمل', notFound:'الصفحة غير موجودة', profileInitial:'أب', browse:'استعراض مساحة العمل',
+  },
 };
 
-const storageKey = 'leeder-demo-v1';
-function loadDemo(): DemoData {
-  try {
-    const value = localStorage.getItem(storageKey);
-    if (!value) return { ...starter, proposal: { ...starter.proposal }, notifications: ['proposal-ready'] };
-    const parsed = JSON.parse(value) as Partial<DemoData>;
-    return { ...starter, ...parsed, proposal: { ...starter.proposal, ...(parsed.proposal || {}) }, notifications: parsed.notifications || [] };
-  } catch { return { ...starter, proposal: { ...starter.proposal }, notifications: ['proposal-ready'] }; }
-}
-
-function StatusBadge({ status, label }: {status:Status; label:string}) {
-  return <span className={`status status-${status.replaceAll(' ','-')}`} data-testid="status-proposal">{label}</span>;
-}
+const roleText: Record<Role, string> = { student:'student', supervisor:'supervisor', department:'departmentAdmin', central:'centralAdmin' };
+const roles: Role[] = ['student', 'supervisor', 'department', 'central'];
+const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase();
+const researchLangCode = (name: string) => name.toLowerCase().includes('arab') ? 'ar' : name.toLowerCase().includes('french') || name.toLowerCase().includes('français') ? 'fr' : name.toLowerCase().includes('english') ? 'en' : 'und';
 
 function App() {
-  const [data, setData] = useState<DemoData>(loadDemo);
-  const [language, setLanguage] = useState<Language>(() => (localStorage.getItem('leeder-language') as Language) || 'en');
+  const [store, setStore] = useState<DemoStore>(loadStore);
+  const [language, setLanguage] = useState<UiLanguage>(() => (localStorage.getItem('leeder-language') as UiLanguage) || 'en');
   const [role, setRole] = useState<Role>(() => (localStorage.getItem('leeder-role') as Role) || 'student');
-  const [accessMode, setAccessMode] = useState<'login'|'register'|null>(null);
-  const [accessName, setAccessName] = useState('');
-  const [accessEmail, setAccessEmail] = useState('');
-  const [demoStudentName, setDemoStudentName] = useState(() => localStorage.getItem('leeder-demo-student-name') || '');
-  const [toast, setToast] = useState('');
+  const [supervisorPersonaId, setSupervisorPersonaId] = useState(() => localStorage.getItem('leeder-supervisor-preview') || 'supervisor-meriem');
   const [location, navigate] = useLocation();
-  const t = (key:string) => copy[language][key] || copy.en[key] || key;
-  const isArabic = language === 'ar';
-  const studentDisplayName = demoStudentName || t('studentName');
-  const statusLabel = (status:Status) => ({
-    Draft:t('statusDraft'),
-    'Pending Review':t('statusPendingReview'),
-    'Modifications Requested':t('statusModifications'),
-    Approved:t('statusApproved'),
-    Rejected:t('statusRejected')
-  })[status];
-  const profileInitials = studentDisplayName.trim().split(/\s+/).filter(Boolean).slice(0,2).map(part=>part[0]).join('').toUpperCase() || t('profileInitial');
+  const [toast, setToast] = useState('');
+  const [accessMode, setAccessMode] = useState<'login' | 'register' | null>(null);
+  const [registrationRole, setRegistrationRole] = useState<'student' | 'supervisor'>('student');
+  const [mobileMenu, setMobileMenu] = useState(false);
+  const [form, setForm] = useState<Proposal>(() => store.proposals.find(item => item.ownerId === currentStudentId) || store.proposals[0]);
+  const [reviewSelectedId, setReviewSelectedId] = useState('proposal-amel');
+  const [access, setAccess] = useState({ name:'', email:'', institution:'University of Oran 1 Ahmed Ben Bella', department:'Faculty of Social Sciences', specialization:'Educational Sciences', year:'2024–2025', title:'Associate professor' });
+  const [newText, setNewText] = useState('');
+  const [draft, setDraft] = useState(() => store.draft || 'Introduction\n\nThis research explores the role of digital learning practices in Algerian public universities. It begins by examining how students access learning resources and participate in blended courses.\n\nResearch focus\n\nThe study considers access, study habits and student engagement as connected dimensions of the learning experience.');
+  const editorRef = useRef<HTMLTextAreaElement>(null);
+  const t = (key: string) => words[language][key] || words.en[key] || key;
+  const studentProposal = store.proposals.find(item => item.ownerId === currentStudentId)!;
+  const updateStore = (updater: (old: DemoStore) => DemoStore) => setStore(updater);
+  const statusText = (status: ProposalStatus) => ({ Draft:t('statusDraft'), 'Pending Review':t('statusPending'), 'Modifications Requested':t('statusModifications'), Approved:t('statusApproved'), Rejected:t('statusRejected') })[status];
+  const statusBadge = (status: ProposalStatus) => <span className={`status status-${status.replaceAll(' ','-')}`} data-testid={`status-${status.toLowerCase().replaceAll(' ','-')}`}>{statusText(status)}</span>;
+  const currentUser = role === 'supervisor'
+    ? store.profiles.find(profile => profile.id === supervisorPersonaId) || store.profiles.find(profile => profile.role === role) || store.profiles[0]
+    : store.profiles.find(profile => profile.role === role) || store.profiles[0];
+  const workflowComplete = (project: Proposal) => project.steps.length > 0 && project.steps.every(step => step.approved);
 
-  useEffect(() => {
-    localStorage.setItem(storageKey, JSON.stringify(data));
-  }, [data]);
+  useEffect(() => { localStorage.setItem('leeder-demo-v1', JSON.stringify(store)); }, [store]);
   useEffect(() => {
     localStorage.setItem('leeder-language', language);
     document.documentElement.lang = language;
-    document.documentElement.dir = isArabic ? 'rtl' : 'ltr';
-    document.body.classList.toggle('rtl', isArabic);
-  }, [language, isArabic]);
+    document.documentElement.dir = language === 'ar' ? 'rtl' : 'ltr';
+    document.body.classList.toggle('rtl', language === 'ar');
+  }, [language]);
   useEffect(() => { localStorage.setItem('leeder-role', role); }, [role]);
-  useEffect(() => { if (demoStudentName) localStorage.setItem('leeder-demo-student-name', demoStudentName); }, [demoStudentName]);
-  useEffect(() => {
-    if (!toast) return;
-    const timer = window.setTimeout(() => setToast(''), 2600);
-    return () => window.clearTimeout(timer);
-  }, [toast]);
-  const submitDemoAccess = (event:FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!accessEmail.trim() || (accessMode==='register' && !accessName.trim())) {
-      setToast(t('accessRequired'));
-      return;
-    }
-    if (accessMode==='register') setDemoStudentName(accessName.trim());
-    setAccessMode(null);
-    setToast(t('accessComplete'));
-    navigate(role==='reviewer'?'/review':'/dashboard');
-  };
-  const updateProposal = (patch:Partial<Proposal>) => setData(prev => ({ ...prev, proposal: { ...prev.proposal, ...patch } }));
-  const updateData = (patch:Partial<DemoData>) => setData(prev => ({ ...prev, ...patch }));
-  const setStatus = (status:Status, feedback:string) => {
-    setData(prev => ({ ...prev, proposal:{ ...prev.proposal, status, feedback }, notifications:[`${statusLabel(status)}: ${feedback || t('actionSaved')}`, ...prev.notifications].slice(0,5) }));
-    setToast(t('actionSaved'));
-  };
-
-  function Header() {
-    const navItems = [['/', 'home'], ['/dashboard', 'dashboard'], ['/proposal', 'proposal'], ['/review', 'review'], ['/editor', 'editor']];
+  useEffect(() => { localStorage.setItem('leeder-supervisor-preview', supervisorPersonaId); }, [supervisorPersonaId]);
+  useEffect(() => { if (!toast) return; const timer = window.setTimeout(() => setToast(''), 2800); return () => window.clearTimeout(timer); }, [toast]);
+  const navigateTo = (href: string) => { navigate(href); setMobileMenu(false); };
+  const header = () => {
+    const links = [['/','home'],['/dashboard','dashboard'],['/proposal','proposal'],['/review','review'],['/editor','editor'],['/department','department'],['/administration','administration']];
     return <header className="topbar">
-      <Link href="/" className="brand" data-testid="link-home"><span className="brand-mark">L</span>leeder</Link>
-      <nav className="nav-links" aria-label="Main navigation">
-        {navItems.map(([href,key]) => <Link href={href} key={href} className={`nav-link ${location===href?'active':''}`} data-testid={`link-${key}`}>{t(key)}</Link>)}
+      <Link href="/" className="brand" data-testid="link-home" onClick={() => setMobileMenu(false)}><span className="brand-mark">L</span><span>leeder</span><span className="brand-caption">RESEARCH WORKSPACE</span></Link>
+      <button className="mobile-menu-button" aria-label="Toggle navigation" aria-expanded={mobileMenu} onClick={() => setMobileMenu(!mobileMenu)} data-testid="button-menu"><Menu size={19}/></button>
+      <nav className={`nav-links ${mobileMenu ? 'nav-open' : ''}`} aria-label="Main navigation">
+        {links.map(([href,key]) => <Link href={href} key={href} className={`nav-link ${location===href?'active':''}`} data-testid={`link-${key}`} onClick={() => setMobileMenu(false)}>{t(key)}</Link>)}
       </nav>
       <div className="nav-actions">
-        <select className="role-select" value={role} aria-label={t('roleHint')} onChange={e=>setRole(e.target.value as Role)} data-testid="select-demo-role">
-          <option value="student">{t('roleStudent')}</option><option value="reviewer">{t('roleReviewer')}</option>
+        <label className="sr-only" htmlFor="role-preview">{t('rolePreview')}</label>
+        <select id="role-preview" className="role-select" value={role} aria-label={t('rolePreview')} onChange={event => setRole(event.target.value as Role)} data-testid="select-demo-role">
+          {roles.map(item => <option key={item} value={item}>{t(roleText[item])}</option>)}
         </select>
-        <select className="lang-select" value={language} aria-label="Language" onChange={e=>setLanguage(e.target.value as Language)} data-testid="select-language">
+        <select className="lang-select" value={language} aria-label="Interface language" onChange={event => setLanguage(event.target.value as UiLanguage)} data-testid="select-language">
           <option value="en">EN</option><option value="fr">FR</option><option value="ar">عربي</option>
         </select>
       </div>
     </header>;
-  }
+  };
+  const notice = () => <div className="notice" data-testid="text-demo-notice"><span className="notice-dot"/><span><strong>{t('demo')}.</strong> {t('local')} <span className="notice-security">{t('notSecurity')}</span></span></div>;
+  const pageHead = (eyebrow: string, title: string, desc: string, extra?: ReactNode) => <div className="page-head" style={{marginTop:28}}><div><div className="eyebrow">{eyebrow}</div><h1 className="page-title">{title}</h1><p className="page-subtitle">{desc}</p></div>{extra}</div>;
+  const sampleProjects = store.proposals.filter(project => project.departmentId === departmentId);
+  const assignedProjects = currentUser.state === 'demo-approved' ? store.proposals.filter(project => project.supervisorId === currentUser.id) : [];
 
-  function Notice() { return <div className="notice" data-testid="text-demo-notice"><span className="notice-dot"/><span><strong>{t('demo')}.</strong> {t('local')}</span></div>; }
+  const landing = () => <div className="landing">{header()}
+    <section className="hero fade-in"><div>
+      <div className="eyebrow">{t('heroEyebrow')}</div><h1 dangerouslySetInnerHTML={{__html:t('heroTitle')}}/><p className="hero-copy">{t('heroText')}</p>
+      <div className="hero-actions"><button className="btn btn-primary" onClick={() => setAccessMode('login')} data-testid="button-enter-demo">{t('signIn')} <ArrowRight size={15}/></button><button className="btn btn-outline" onClick={() => { setRegistrationRole('student'); setAccessMode('register'); }} data-testid="button-register-demo">{t('register')}</button></div>
+      <div style={{marginTop:26,maxWidth:540}}>{notice()}</div>
+      <div className="role-entry-list"><button onClick={() => { setRole('student');navigateTo('/dashboard'); }}><GraduationCap size={16}/>{t('student')}<ChevronRight size={14}/></button><button onClick={() => { setRole('supervisor');navigateTo('/dashboard'); }}><UserRound size={16}/>{t('supervisor')}<ChevronRight size={14}/></button><button onClick={() => { setRole('department');navigateTo('/department'); }}><Building2 size={16}/>{t('departmentAdmin')}<ChevronRight size={14}/></button><button onClick={() => { setRole('central');navigateTo('/administration'); }}><Settings2 size={16}/>{t('centralAdmin')}<ChevronRight size={14}/></button></div>
+    </div><div className="hero-art"><div className="art-kicker">LEEDER / RESEARCH JOURNEY</div><div className="art-title">{t('heroMini')}</div><div className="paper-card"><div className="meta-label">{t('proposal')}</div><div style={{fontWeight:700,fontSize:15,marginTop:10,color:'#213d54'}}>{studentProposal.title}</div><div className="paper-line"/><div className="paper-line short"/><div className="paper-line"/><span className="paper-tag">{statusText(studentProposal.status)}</span></div><div className="art-bottom">{t('universityName')}</div></div></section>
+    <section className="landing-section"><div className="eyebrow">{t('featureEyebrow')}</div><h2 className="section-headline">{t('featureTitle')}</h2><p className="page-subtitle">{t('honest')}</p><div className="feature-grid">{[['01',t('feature1'),t('feature1d'),FileText],['02',t('feature2'),t('feature2d'),ClipboardCheck],['03',t('feature3'),t('feature3d'),BookOpen]].map(([n,title,desc,Icon])=>{const Mark=Icon as typeof FileText; return <article className="feature-card" key={n as string}><span className="feature-index">{n as string} / 03</span><div className="feature-card-title"><h3>{title as string}</h3><Mark size={18}/></div><p>{desc as string}</p></article>;})}</div></section>
+    <footer className="landing-footer"><span>© Leeder · {t('footer')}</span><span>{t('sample')} · {t('location')}</span></footer>
+    {accessMode && <div className="access-overlay" onClick={() => setAccessMode(null)}><section className="access-dialog" role="dialog" aria-modal="true" aria-labelledby="access-title" onClick={event => event.stopPropagation()}>
+      <div className="access-dialog-top"><span className="brand-mark">L</span><button type="button" className="access-close" aria-label={t('cancel')} onClick={() => setAccessMode(null)}><X size={18}/></button></div><div className="eyebrow">{t('demo')}</div><h2 id="access-title">{accessMode === 'login' ? t('signInTitle') : t('registerTitle')}</h2>
+      {accessMode === 'login' ? <div className="login-role-options">{roles.map(item => <button key={item} className="panel role-option" onClick={() => { setRole(item); setAccessMode(null); navigateTo(item === 'department' ? '/department' : item === 'central' ? '/administration' : '/dashboard'); }}><span className="role-option-icon">{item==='student'?<GraduationCap size={18}/>:item==='supervisor'?<UserRound size={18}/>:item==='department'?<Building2 size={18}/>:<Settings2 size={18}/>}</span><span><strong>{t(roleText[item])}</strong><small>{item==='central'?t('setupAccount'):t('rolePreview')}</small></span><ChevronRight size={16}/></button>)}</div> :
+        <RegistrationFields registrationRole={registrationRole} setRegistrationRole={setRegistrationRole} access={access} setAccess={setAccess} t={t} onCancel={() => setAccessMode(null)} onSubmit={(event: FormEvent<HTMLFormElement>) => {
+          event.preventDefault();
+          const itemRole = registrationRole;
+          const newProfile = { id:`profile-${Date.now()}`, name:access.name.trim(), email:access.email.trim(), role:itemRole, state:itemRole==='student'?'email-verification-pending':'pending-department-approval', institutionId:'oran1', departmentId, institutionName:access.institution.trim(), departmentName:access.department.trim(), specialization:access.specialization, academicYear:access.year, title:access.title };
+          updateStore(old => ({...old, profiles:[...old.profiles,newProfile],activity:[`${newProfile.name} registered as ${itemRole}; ${itemRole==='student'?'email verification pending':'department approval pending'}.`,...old.activity].slice(0,8)}));
+          setRole(itemRole);setAccessMode(null);setToast(itemRole==='student'?t('verificationPending'):t('supervisorPending'));navigateTo('/dashboard');
+        }}/> }
+      </section></div>}
+  </div>;
 
-  function Landing() {
-    return <div className="landing">
-      <Header />
-      <section className="hero fade-in">
-        <div>
-          <div className="eyebrow">{t('heroEyebrow')}</div>
-          <h1 dangerouslySetInnerHTML={{__html:t('heroTitle')}} />
-          <p className="hero-copy">{t('heroText')}</p>
-          <div className="hero-actions">
-            <button className="btn btn-primary" onClick={()=>setAccessMode('login')} data-testid="button-enter-demo">{t('signIn')} <ArrowRight size={15}/></button>
-            <button className="btn btn-outline" onClick={()=>{setRole('student');setAccessMode('register');}} data-testid="button-register-demo">{t('register')}</button>
-          </div>
-          <div style={{marginTop:28,maxWidth:490}}><Notice/></div>
-        </div>
-        <div className="hero-art" aria-label={t('heroMini')}>
-          <div className="art-kicker">Leeder / Research journey</div>
-          <div className="art-title">{t('heroMini')}</div>
-          <div className="paper-card">
-            <div className="meta-label">{t('researchProposalLabel')}</div>
-            <div style={{fontWeight:700,fontSize:15,marginTop:10,color:'#213d54'}}>{data.proposal.title}</div>
-            <div className="paper-line"/><div className="paper-line short"/><div className="paper-line"/>
-            <span className="paper-tag">{statusLabel(data.proposal.status)}</span>
-          </div>
-          <div className="art-bottom">{t('universityResearchLabel')}</div>
-        </div>
-      </section>
-      <section className="landing-section">
-        <div className="eyebrow">{t('featureEyebrow')}</div><h2 className="section-headline">{t('featureTitle')}</h2>
-        <p className="page-subtitle">{t('honest')}</p>
-        <div className="feature-grid">
-          {[['01',t('feature1'),t('feature1d'),FileText],['02',t('feature2'),t('feature2d'),ClipboardCheck],['03',t('feature3'),t('feature3d'),BookOpen]].map(([n,title,desc,Icon])=>{
-            const Mark = Icon as typeof FileText;
-            return <article className="feature-card" key={n as string}><span className="feature-index">{n as string} / 03</span><div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}><h3>{title as string}</h3><Mark size={18} color="#438c7e"/></div><p>{desc as string}</p></article>;
-          })}
-        </div>
-      </section>
-      <footer className="landing-footer"><span>© Leeder · {t('footer')}</span><span>{t('sample')} · {t('location')}</span></footer>
-      {accessMode && <div className="access-overlay" onClick={()=>setAccessMode(null)}>
-        <section className="access-dialog" role="dialog" aria-modal="true" aria-labelledby="access-title" onClick={event=>event.stopPropagation()}>
-          <div className="access-dialog-top"><span className="brand-mark">L</span><button type="button" className="access-close" aria-label={t('cancel')} onClick={()=>setAccessMode(null)}>×</button></div>
-          <div className="eyebrow">{t('demo')}</div>
-          <h2 id="access-title">{accessMode==='login'?t('signInTitle'):t('registerTitle')}</h2>
-          <p className="access-note">{t('accessNote')}</p>
-          <form className="access-form" onSubmit={submitDemoAccess}>
-            {accessMode==='register' && <label className="field"><span>{t('fullName')}</span><input autoComplete="name" value={accessName} onChange={event=>setAccessName(event.target.value)} required /></label>}
-            <label className="field"><span>{t('emailAddress')}</span><input type="email" autoComplete="email" value={accessEmail} onChange={event=>setAccessEmail(event.target.value)} required /></label>
-            <div className="callout">{t('accessNote')}</div>
-            <div className="access-actions"><button type="submit" className="btn btn-primary">{t('continueDemo')} <ArrowRight size={14}/></button><button type="button" className="btn btn-outline" onClick={()=>setAccessMode(null)}>{t('cancel')}</button></div>
-          </form>
+  const studentDashboard = () => {
+    const p = studentProposal;
+    const progress = workflowComplete(p) ? 100 : p.status==='Draft' ? 28 : 45 + Math.round((p.steps.filter(step=>step.approved).length/Math.max(p.steps.length,1))*45);
+    const next = workflowComplete(p) ? t('editorTitle') : p.status==='Draft' ? t('proposal') : p.steps.find(step=>!step.approved)?.label || t('review');
+    return <><main className="page-wrap fade-in">{notice()}{pageHead(`${t('welcome')} ${store.profiles.find(profile=>profile.id===currentStudentId)?.name || 'Amel Bensalem'}`,t('workspace'),t('workspaceDesc'),<button className="btn btn-primary" onClick={() => navigateTo('/proposal')}><FilePenLine size={15}/>{t('editProposal')}</button>)}
+      <div className="grid-main"><div className="stack">
+        <section className="panel panel-pad"><div className="panel-topline"><div><div className="meta-label">{t('currentStatus')}</div><div style={{marginTop:9}}>{statusBadge(p.status)}</div></div><button className="btn btn-soft" onClick={() => navigateTo('/proposal')}>{t('proposal')} <ChevronRight size={14}/></button></div>
+          <h2 className="proposal-title">{p.title || t('noProposal')}</h2><div className="muted" style={{fontSize:12}}>{p.field || '—'} · {p.researchLanguage}</div>{p.feedback && <div className="callout" style={{marginTop:17}}><strong>{t('feedback')}:</strong> <span dir="auto">{p.feedback}</span></div>}
+          <div className="stat-row"><div className="stat"><div className="stat-label">{t('progress')}</div><div className="stat-value">{progress}%</div><div className="progress-track"><div className="progress-fill" style={{width:`${progress}%`}}/></div></div><div className="stat"><div className="stat-label">{t('nextStep')}</div><div className="stat-value stat-value-small">{next}</div></div><div className="stat"><div className="stat-label">{t('language')}</div><div className="stat-value stat-value-small">{p.researchLanguage}</div></div></div>
+          <div className="meta-label">{t('stepReview')}</div><div className="steps">{p.steps.map((step,index)=><div className={`step ${step.approved?'done':index===p.steps.findIndex(item=>!item.approved)?'':'pending'}`} key={step.id}><span className="step-icon">{step.approved?<Check size={12}/>:index+1}</span><div><strong>{step.label}</strong><small>{step.approved?t('completed'):index===p.steps.findIndex(item=>!item.approved)?t('awaiting'):t('pending')}</small>{step.comment&&<small dir="auto">{step.comment}</small>}</div></div>)}</div>
         </section>
-      </div>}
-    </div>;
-  }
-
-  function Dashboard() {
-    const steps: {name:string;done:boolean;state:string}[] = [
-      {name:t('stepProfile'),done:true,state:t('completed')},
-      {name:t('stepProposal'),done:data.proposal.status!=='Draft',state:data.proposal.status==='Draft'?t('underway'):t('completed')},
-      {name:t('stepReview'),done:data.proposal.status==='Approved'||data.proposal.status==='Rejected'||data.proposal.status==='Modifications Requested',state:data.proposal.status==='Pending Review'?t('awaiting'):data.proposal.status==='Draft'?t('awaiting'):t('completed')},
-      {name:t('stepWriting'),done:data.proposal.status==='Approved',state:data.proposal.status==='Approved'?t('available'):t('awaiting')}
-    ];
-    const progress = data.proposal.status==='Approved'?100:data.proposal.status==='Pending Review'?61:data.proposal.status==='Modifications Requested'?61:data.proposal.status==='Rejected'?61:34;
-    return <><Header/><main className="page-wrap fade-in"><Notice/>
-      <div className="page-head" style={{marginTop:30}}>
-        <div><div className="eyebrow">{t('welcome')} {studentDisplayName}</div><h1 className="page-title">{t('workspace')}</h1><p className="page-subtitle">{t('workspaceDesc')}</p></div>
-        <button className="btn btn-primary" onClick={()=>navigate('/proposal')} data-testid="button-edit-proposal"><FilePenLine size={15}/>{t('editProposal')}</button>
-      </div>
-      <div className="grid-main">
-        <div className="stack">
-          <section className="panel panel-pad">
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:12}}><div><div className="meta-label">{t('currentStatus')}</div><div style={{marginTop:9}}><StatusBadge status={data.proposal.status} label={statusLabel(data.proposal.status)}/></div></div>
-              <button className="btn btn-soft" onClick={()=>navigate('/proposal')} data-testid="button-proposal-details">{t('proposal')} <ChevronRight size={14}/></button></div>
-            <h2 style={{fontSize:19,color:'#24435c',margin:'20px 0 7px'}}>{data.proposal.title || t('noProposal')}</h2>
-            <div className="muted" style={{fontSize:12}}>{data.proposal.field || '—'} · {data.proposal.researchLanguage}</div>
-            {data.proposal.feedback && <div className="callout" style={{marginTop:18}}><strong>{t('feedback')}:</strong> {data.proposal.feedback}</div>}
-            <div className="stat-row">
-              <div className="stat"><div className="stat-label">{t('progress')}</div><div className="stat-value">{progress}%</div><div className="progress-track"><div className="progress-fill" style={{width:`${progress}%`}}/></div></div>
-              <div className="stat"><div className="stat-label">{t('nextStep')}</div><div className="stat-value" style={{fontSize:14}}>{data.proposal.status==='Approved'?t('stepWriting'):data.proposal.status==='Draft'?t('stepProposal'):t('stepReview')}</div></div>
-              <div className="stat"><div className="stat-label">{t('language')}</div><div className="stat-value" style={{fontSize:14}}>{data.proposal.researchLanguage}</div></div>
-            </div>
-            <div className="meta-label">{t('progress')}</div>
-            <div className="steps">{steps.map((step,i)=><div className={`step ${step.done?'done':i===1?'':'pending'}`} key={step.name}><span className="step-icon">{step.done?<Check size={12}/>:i+1}</span><div><strong>{step.name}</strong><small>{step.state}</small></div></div>)}</div>
-          </section>
-          <section className="panel panel-pad">
-            <h2 className="section-title">{t('academic')}</h2><p className="section-caption">{t('sample')}</p>
-            <div className="stat-row" style={{marginBottom:0}}>
-              {[[t('university'),t('universityName')],[t('department'),t('departmentName')],[t('degree'),t('degreeName')]].map(([label,value])=><div className="stat" key={label}><div className="stat-label">{label}</div><div className="meta-value">{value}</div></div>)}
-            </div>
-          </section>
-        </div>
-        <aside className="stack">
-          <section className="panel panel-pad">
-            <h2 className="section-title">{t('profile')}</h2>
-            <div className="profile-line" style={{marginTop:19}}><div className="avatar">{profileInitials}</div><div><strong style={{fontSize:14,color:'#25445d'}}>{studentDisplayName}</strong><div className="muted" style={{fontSize:11,marginTop:4}}>{t('degreeName')}</div></div></div>
-            <div className="divider"/>
-            <div className="meta-label">{t('supervisor')}</div><div className="profile-line" style={{marginTop:12}}><div className="avatar" style={{background:'#e8edf2',color:'#425d74'}}>MK</div><div><strong style={{fontSize:13,color:'#29445a'}}>Dr. Meriem Kaci</strong><div className="muted" style={{fontSize:11,marginTop:4}}>{t('supervisorRole')} · {t('academicField')}</div></div></div>
-          </section>
-          <section className="panel panel-pad"><div style={{display:'flex',alignItems:'center',gap:8,marginBottom:14}}><Bell size={15} color="#398879"/><h2 className="section-title" style={{margin:0}}>{t('notifications')}</h2></div>
-            {data.notifications.length===0?<p className="section-caption">{t('noNotifications')}</p>:data.notifications.map((n,i)=><div className="notification" key={`${n}-${i}`}><span className="notification-mark"/><div><p>{n==='proposal-ready'?t('defaultNotification'):n}</p><time>{i===0?t('justNow'):`${i+1} ${t('daysAgo')}`} · {t('localDemoTag')}</time></div></div>)}
-          </section>
-          <div className="callout"><strong>{t('demo')}:</strong> {t('honest')}</div>
-        </aside>
-      </div>
+        <section className="panel panel-pad"><h2 className="section-title">{t('academic')}</h2><p className="section-caption">{t('sample')}</p><div className="stat-row" style={{marginBottom:0}}>{[[t('university'),t('universityName')],[t('departmentField'),t('departmentName')],[t('degree'),t('degreeName')]].map(([label,value])=><div className="stat" key={label}><div className="stat-label">{label}</div><div className="meta-value">{value}</div></div>)}</div></section>
+      </div><aside className="stack"><section className="panel panel-pad"><h2 className="section-title">{t('profile')}</h2><div className="profile-line" style={{marginTop:18}}><div className="avatar">{initials('Amel Bensalem')}</div><div><strong>Amel Bensalem</strong><div className="muted" style={{fontSize:11,marginTop:4}}>{t('degreeName')}</div></div></div><div className="divider"/><div className="meta-label">{t('supervisor')}</div><div className="profile-line" style={{marginTop:12}}><div className="avatar avatar-muted">MK</div><div><strong>Dr. Meriem Kaci</strong><div className="muted" style={{fontSize:11,marginTop:4}}>{t('supervisor')} · Educational Technology</div></div></div></section>
+      <section className="panel panel-pad"><div className="panel-topline"><Bell size={15} color="#398879"/><h2 className="section-title" style={{margin:0}}>{t('notifications')}</h2></div>{store.activity.slice(0,3).map((item,index)=><div className="notification" key={`${item}-${index}`}><span className="notification-mark"/><div><p dir="auto">{item}</p><time>{index===0?'Just now':`${index+1} days ago`} · local demo</time></div></div>)}</section>
+      <div className="callout"><strong>{t('demo')}.</strong> {t('honest')}</div></aside></div>
     </main></>;
+  };
+
+  const dashboard = () => role === 'student' ? studentDashboard() : role === 'supervisor' ? supervisorDashboard() : role === 'department' ? departmentDashboard() : centralDashboard();
+
+  function supervisorDashboard() {
+    return <main className="page-wrap fade-in">{notice()}{pageHead(`${t('supervisor')} · ${currentUser.name}`,t('supervisorDash'),t('reviewDesc'),<div className="supervisor-actions"><label className="sr-only" htmlFor="supervisor-preview">{t('supervisor')}</label><select id="supervisor-preview" className="role-select" value={currentUser.id} onChange={e=>setSupervisorPersonaId(e.target.value)}>{store.profiles.filter(profile=>profile.role==='supervisor').map(person=><option key={person.id} value={person.id}>{person.name} · {person.state==='demo-approved'?t('approvedDemo'):t('pending')}</option>)}</select><button className="btn btn-primary" onClick={() => navigateTo('/review')}><ClipboardCheck size={15}/>{t('reviewTitle')}</button></div>)}
+      <div className="stats-strip"><div className="stat"><div className="stat-label">{t('assignedTo')}</div><div className="stat-value">{assignedProjects.length} projects</div></div><div className="stat"><div className="stat-label">{t('statusPending')}</div><div className="stat-value">{assignedProjects.filter(item=>item.status==='Pending Review').length}</div></div><div className="stat"><div className="stat-label">{t('feedback')}</div><div className="stat-value">{assignedProjects.filter(item=>item.feedback).length} updates</div></div></div>
+        {!assignedProjects.length ? <div className="empty-state panel"><UserRound size={24}/><h2>{t('noAssigned')}</h2><p>{t('notSecurity')}</p></div> : <div className="project-list">{assignedProjects.map(project=><article className="panel project-card" key={project.id}><div className="project-card-top"><span className="feature-index">{project.ownerName} · {project.field}</span>{statusBadge(project.status)}</div><h2>{project.title}</h2><p dir="auto">{project.problem}</p><div className="project-card-bottom"><span className="muted">{t('currentStep')}: {project.steps.find(step=>!step.approved)?.label || t('completeWorkflow')}</span><button className="btn btn-soft" onClick={() => { setReviewSelectedId(project.id);navigateTo('/review'); }}>{t('reviewTitle')} <ArrowRight size={14}/></button></div></article>)}</div>}
+    </main>;
   }
 
-  function ProposalPage() {
-    const [form,setForm] = useState<Proposal>(data.proposal);
-    useEffect(()=>setForm(data.proposal),[data.proposal]);
-    const setField = (key:keyof Proposal,value:string) => setForm(prev=>({...prev,[key]:value}));
-    const save = (submit:boolean) => {
-      if (submit && (!form.title.trim() || !form.problem.trim())) { setToast(t('required')); return; }
-      const status:Status = submit?'Pending Review':(form.status==='Approved'||form.status==='Rejected'?'Draft':form.status==='Modifications Requested'?'Modifications Requested':'Draft');
-      updateProposal({...form,status});
-      if (submit) setData(prev=>({...prev,notifications:[t('submitted'),...prev.notifications].slice(0,5)}));
-      setToast(submit?t('submitted'):t('saved'));
+  const departmentDashboard = () => {
+    const proposals = store.proposals.filter(project => project.departmentId === departmentId);
+    const supervisors = store.profiles.filter(profile => profile.role==='supervisor' && profile.departmentId===departmentId);
+    const pendingSupervisors = supervisors.filter(profile => profile.state==='pending');
+    const saveWorkflow = (workflow: DemoStore['workflow']) => updateStore(old => ({...old,workflow,proposals:old.proposals.map(project=>project.departmentId!==departmentId?project:{...project,status:project.status==='Draft'?'Draft':'Pending Review',steps:workflow.map(step=>({...step,approved:false,comment:''}))}),activity:['Department approval workflow changed; sample projects returned to review.',...old.activity].slice(0,8)}));
+    return <main className="page-wrap fade-in">{notice()}{pageHead(`${t('departmentAdmin')} · Faculty of Social Sciences`,t('department'),t('notSecurity'))}
+      <div className="stats-strip"><div className="stat"><div className="stat-label">{t('people')}</div><div className="stat-value">{store.profiles.filter(profile=>profile.departmentId===departmentId&&profile.role==='student').length} students</div></div><div className="stat"><div className="stat-label">{t('proposal')}</div><div className="stat-value">{proposals.length} projects</div></div><div className="stat"><div className="stat-label">{t('pendingApplications')}</div><div className="stat-value">{pendingSupervisors.length}</div></div></div>
+      <div className="admin-grid">
+        <section className="panel panel-pad admin-wide"><div className="section-heading-row"><div><h2 className="section-title">{t('people')}</h2><p className="section-caption">{t('departmentName')} · sample department data only</p></div><Users size={18}/></div>
+          <div className="table-wrap"><table><thead><tr><th>{t('student')}</th><th>{t('proposal')}</th><th>{t('status')}</th><th>{t('assignSupervisor')}</th></tr></thead><tbody>{proposals.map(project=><tr key={project.id}><td><strong>{project.ownerName}</strong><small>{project.field}</small></td><td>{project.title}</td><td>{statusBadge(project.status)}</td><td><div className="inline-controls"><select aria-label={`${t('chooseSupervisor')} ${project.ownerName}`} value={project.supervisorId} onChange={e=>updateStore(old=>({...old,proposals:old.proposals.map(item=>item.id===project.id?{...item,supervisorId:e.target.value}:item)}))}>{supervisors.filter(profile=>profile.state==='demo-approved').map(person=><option key={person.id} value={person.id}>{person.name}</option>)}</select></div></td></tr>)}</tbody></table></div>
+        </section>
+        <section className="panel panel-pad"><h2 className="section-title">{t('pendingApplications')}</h2><p className="section-caption">{t('supervisorPending')}</p>{pendingSupervisors.length===0?<div className="empty-inline"><CircleCheck size={16}/>{t('noAssigned')}</div>:pendingSupervisors.map(person=><div className="manage-row" key={person.id}><div><strong>{person.name}</strong><small>{person.specialization} · {person.title}</small></div><div className="row-actions"><button className="icon-action accept" aria-label={t('approveApplication')} onClick={()=>updateStore(old=>({...old,profiles:old.profiles.map(item=>item.id===person.id?{...item,state:'demo-approved'}:item)}))}><Check size={15}/></button><button className="icon-action reject" aria-label={t('rejectApplication')} onClick={()=>updateStore(old=>({...old,profiles:old.profiles.filter(item=>item.id!==person.id)}))}><X size={15}/></button></div></div>)}</section>
+        <section className="panel panel-pad"><div className="section-heading-row"><h2 className="section-title">{t('academicSettings')}</h2><Settings2 size={18}/></div><div className="field"><label>{t('academicYear')}</label><div className="chips">{store.years.map(year=><span className="chip" key={year}>{year}<button aria-label={`${t('remove')} ${year}`} onClick={()=>updateStore(old=>({...old,years:old.years.filter(value=>value!==year)}))}><X size={12}/></button></span>)}</div><div className="inline-add"><input aria-label={t('academicYear')} value={newText} onChange={e=>setNewText(e.target.value)} placeholder={t('academicYear')}/><button className="btn btn-soft" onClick={()=>{if(newText.trim()) {updateStore(old=>({...old,years:[...old.years,newText.trim()]}));setNewText('');}}}><Plus size={14}/>{t('add')}</button></div></div><div className="field" style={{marginTop:18}}><label>{t('specialization')}</label><div className="chips">{store.specializations.map(item=><span className="chip" key={item}>{item}<button aria-label={`${t('remove')} ${item}`} onClick={()=>updateStore(old=>({...old,specializations:old.specializations.filter(value=>value!==item)}))}><X size={12}/></button></span>)}</div><div className="inline-add"><input aria-label={t('specialization')} value={newText} onChange={e=>setNewText(e.target.value)} placeholder={t('specialization')}/><button className="btn btn-soft" onClick={()=>{if(newText.trim()) {updateStore(old=>({...old,specializations:[...old.specializations,newText.trim()]}));setNewText('');}}}><Plus size={14}/>{t('add')}</button></div></div></section>
+        <section className="panel panel-pad"><div className="section-heading-row"><h2 className="section-title">{t('templates')}</h2><FileText size={18}/></div>{store.templates.map(template=><div className="manage-row" key={template}><strong>{template}</strong><button className="icon-action reject" aria-label={`${t('remove')} ${template}`} onClick={()=>updateStore(old=>({...old,templates:old.templates.filter(item=>item!==template)}))}><Trash2 size={14}/></button></div>)}<div className="inline-add"><input aria-label={t('templateName')} value={newText} onChange={e=>setNewText(e.target.value)} placeholder={t('templateName')}/><button className="btn btn-soft" onClick={()=>{if(newText.trim()) {updateStore(old=>({...old,templates:[...old.templates,newText.trim()]}));setNewText('');}}}><Plus size={14}/>{t('add')}</button></div></section>
+        <section className="panel panel-pad admin-wide"><div className="section-heading-row"><div><h2 className="section-title">{t('workflow')}</h2><p className="section-caption">{t('notSecurity')}</p></div><ClipboardCheck size={18}/></div>
+          {store.workflow.map((step,index)=><div className="workflow-row" key={step.id}><span className="workflow-order">{String(index+1).padStart(2,'0')}</span><input aria-label={t('stepName')} value={step.label} onChange={e=>saveWorkflow(store.workflow.map(item=>item.id===step.id?{...item,label:e.target.value}:item))}/><select aria-label={t('responsibleRole')} value={step.role} onChange={e=>saveWorkflow(store.workflow.map(item=>item.id===step.id?{...item,role:e.target.value as 'supervisor'|'department'|'central'}:item))}><option value="supervisor">{t('supervisor')}</option><option value="department">{t('departmentAdmin')}</option><option value="central">{t('centralAdmin')}</option></select><button className="icon-action" aria-label={t('moveUp')} disabled={index===0} onClick={()=>{const next=[...store.workflow];[next[index-1],next[index]]=[next[index],next[index-1]];saveWorkflow(next);}}>↑</button><button className="icon-action" aria-label={t('moveDown')} disabled={index===store.workflow.length-1} onClick={()=>{const next=[...store.workflow];[next[index+1],next[index]]=[next[index],next[index+1]];saveWorkflow(next);}}>↓</button><button className="icon-action reject" aria-label={t('remove')} onClick={()=>saveWorkflow(store.workflow.filter(item=>item.id!==step.id))}><Trash2 size={14}/></button></div>)}
+          <button className="btn btn-soft" style={{marginTop:14}} onClick={()=>saveWorkflow([...store.workflow,{id:`step-${Date.now()}`,label:'New review step',role:'department'}])}><Plus size={14}/>{t('addStep')}</button>
+        </section>
+      </div>
+    </main>;
+  };
+
+  const centralDashboard = () => {
+    const admins=store.profiles.filter(profile=>profile.role==='department');
+    const authorized=store.profiles.filter(profile=>profile.role==='supervisor'&&profile.state==='demo-approved');
+    return <main className="page-wrap fade-in">{notice()}{pageHead(`${t('centralAdmin')} · ${t('setupAccount')}`,t('administration'),t('notSecurity'))}
+      <div className="stats-strip"><div className="stat"><div className="stat-label">{t('institutions')}</div><div className="stat-value">{store.institutions.length}</div></div><div className="stat"><div className="stat-label">{t('people')}</div><div className="stat-value">{store.profiles.filter(profile=>profile.role==='student').length} students</div></div><div className="stat"><div className="stat-label">{t('participation')}</div><div className="stat-value">{store.proposals.length} sample projects</div></div></div>
+      <div className="admin-grid">
+        <section className="panel panel-pad admin-wide"><div className="section-heading-row"><div><h2 className="section-title">{t('institutions')}</h2><p className="section-caption">{t('manageInstitutions')}</p></div><Building2 size={18}/></div>
+          {store.institutions.map(institution=><div className="institution-block" key={institution.id}><div className="institution-top"><strong>{institution.name}</strong><button className="icon-action reject" aria-label={t('remove')} onClick={()=>updateStore(old=>({...old,institutions:old.institutions.filter(item=>item.id!==institution.id)}))}><Trash2 size={14}/></button></div><div className="chips">{institution.departments.map(item=><span className="chip" key={item}>{item}<button aria-label={`${t('remove')} ${item}`} onClick={()=>updateStore(old=>({...old,institutions:old.institutions.map(record=>record.id===institution.id?{...record,departments:record.departments.filter(name=>name!==item)}:record)}))}><X size={12}/></button></span>)}</div><div className="inline-add"><input aria-label={t('newDepartment')} value={newText} onChange={e=>setNewText(e.target.value)} placeholder={t('newDepartment')}/><button className="btn btn-soft" onClick={()=>{if(newText.trim()){updateStore(old=>({...old,institutions:old.institutions.map(item=>item.id===institution.id?{...item,departments:[...item.departments,newText.trim()]}:item)}));setNewText('');}}}><Plus size={14}/>{t('add')}</button></div></div>)}
+          <div className="institution-add"><input aria-label={t('institutionName')} value={newText} onChange={e=>setNewText(e.target.value)} placeholder={t('institutionName')}/><button className="btn btn-primary" onClick={()=>{if(newText.trim()){updateStore(old=>({...old,institutions:[...old.institutions,{id:`inst-${Date.now()}`,name:newText.trim(),departments:[]}]}));setNewText('');}}}><Plus size={14}/>{t('addInstitution')}</button></div>
+        </section>
+        <section className="panel panel-pad"><h2 className="section-title">{t('admins')}</h2>{admins.map(person=><div className="manage-row" key={person.id}><div><strong>{person.name}</strong><small>{person.email} · {person.state==='pending-central-approval'?t('pendingCentral'):t('approvedDemo')}</small></div>{person.state==='pending-central-approval'&&<button className="btn btn-soft" onClick={()=>updateStore(old=>({...old,profiles:old.profiles.map(item=>item.id===person.id?{...item,state:'demo-approved'}:item)}))}>{t('approveAdmin')}</button>}</div>)}<div className="create-admin-form"><input aria-label={t('fullName')} placeholder={t('fullName')} value={access.name} onChange={e=>setAccess({...access,name:e.target.value})}/><input aria-label={t('email')} placeholder={t('email')} value={access.email} onChange={e=>setAccess({...access,email:e.target.value})}/><button className="btn btn-primary" onClick={()=>{if(access.name.trim()&&access.email.trim()){updateStore(old=>({...old,profiles:[...old.profiles,{id:`dept-admin-${Date.now()}`,name:access.name.trim(),email:access.email.trim(),role:'department',state:'pending-central-approval',institutionId:'oran1',departmentId,specialization:'Department administration',academicYear:'2024–2025'}],activity:[`${access.name} provisioned as a department administrator; pending central approval.`,...old.activity].slice(0,8)}));setAccess({...access,name:'',email:''});}}}><Plus size={14}/>{t('createAdmin')}</button></div></section>
+        <section className="panel panel-pad"><div className="section-heading-row"><h2 className="section-title">{t('authorizedRoster')}</h2><UserRound size={18}/></div>{authorized.map(person=><div className="manage-row" key={person.id}><div><strong>{person.name}</strong><small>{person.specialization}</small></div><button className="icon-action reject" aria-label={t('remove')} onClick={()=>updateStore(old=>({...old,profiles:old.profiles.map(item=>item.id===person.id?{...item,state:'pending'}:item)}))}><X size={14}/></button></div>)}<div className="inline-add"><select aria-label={t('addSupervisor')} value={newText} onChange={e=>setNewText(e.target.value)}><option value="">{t('chooseSupervisor')}</option>{store.profiles.filter(person=>person.role==='supervisor'&&person.state!=='demo-approved').map(person=><option key={person.id} value={person.id}>{person.name}</option>)}</select><button className="btn btn-soft" onClick={()=>{if(newText){updateStore(old=>({...old,profiles:old.profiles.map(item=>item.id===newText?{...item,state:'demo-approved'}:item)}));setNewText('');}}}><Plus size={14}/>{t('addSupervisor')}</button></div></section>
+        <section className="panel panel-pad"><div className="section-heading-row"><div><h2 className="section-title">{t('academicSettings')}</h2><p className="section-caption">{t('year')} · {t('specialization')} · workflow options</p></div><Settings2 size={18}/></div>
+          <div className="meta-label">{t('academicYear')}</div><div className="chips">{store.years.map(year=><span className="chip" key={year}>{year}<button aria-label={`${t('remove')} ${year}`} onClick={()=>updateStore(old=>({...old,years:old.years.filter(item=>item!==year)}))}><X size={12}/></button></span>)}</div>
+          <div className="inline-add"><input aria-label={t('academicYear')} placeholder={t('academicYear')} value={newText} onChange={e=>setNewText(e.target.value)}/><button className="btn btn-soft" onClick={()=>{if(newText.trim()){updateStore(old=>({...old,years:[...old.years,newText.trim()]}));setNewText('');}}}><Plus size={14}/>{t('add')}</button></div>
+          <div className="meta-label" style={{marginTop:17}}>{t('specialization')}</div><div className="chips">{store.specializations.map(item=><span className="chip" key={item}>{item}<button aria-label={`${t('remove')} ${item}`} onClick={()=>updateStore(old=>({...old,specializations:old.specializations.filter(value=>value!==item)}))}><X size={12}/></button></span>)}</div>
+          <div className="inline-add"><input aria-label={t('specialization')} placeholder={t('specialization')} value={newText} onChange={e=>setNewText(e.target.value)}/><button className="btn btn-soft" onClick={()=>{if(newText.trim()){updateStore(old=>({...old,specializations:[...old.specializations,newText.trim()]}));setNewText('');}}}><Plus size={14}/>{t('add')}</button></div>
+          <div className="meta-label" style={{marginTop:18}}>{t('workflow')}</div>{store.workflow.map(step=><div className="manage-row" key={step.id}><div><strong>{step.label}</strong><small>{t(roleText[step.role])}</small></div><button className="icon-action reject" aria-label={`${t('remove')} ${step.label}`} onClick={()=>updateStore(old=>({...old,workflow:old.workflow.filter(item=>item.id!==step.id)}))}><Trash2 size={14}/></button></div>)}
+          <button className="btn btn-soft" style={{marginTop:12}} onClick={()=>updateStore(old=>({...old,workflow:[...old.workflow,{id:`option-${Date.now()}`,label:'New central review option',role:'central'}]}))}><Plus size={14}/>{t('addStep')}</button>
+        </section>
+        <section className="panel panel-pad"><div className="section-heading-row"><h2 className="section-title">{t('oversight')}</h2><CircleAlert size={18}/></div><div className="stat-row" style={{gridTemplateColumns:'1fr 1fr'}}><div className="stat"><div className="stat-label">{t('participation')}</div><div className="stat-value">{store.profiles.filter(profile=>profile.role==='student').length} student profiles</div></div><div className="stat"><div className="stat-label">{t('statusPending')}</div><div className="stat-value">{store.proposals.filter(item=>item.status==='Pending Review').length} projects</div></div></div><h3 className="section-title" style={{marginTop:18}}>{t('activity')}</h3>{store.activity.slice(0,4).map((item,index)=><div className="activity-item" key={`${item}-${index}`}><span className="notification-mark"/><span dir="auto">{item}</span></div>)}</section>
+      </div>
+    </main>;
+  };
+
+  const proposalPage = () => {
+    const field = (key: 'problem'|'objectives'|'methodology'|'outline', label: string, tall=false) => <div className="field full"><label htmlFor={`field-${key}`}>{label}</label><textarea id={`field-${key}`} className={tall?'tall':''} dir="auto" lang={researchLangCode(form.researchLanguage)} value={form[key]} onChange={e=>setForm({...form,[key]:e.target.value})} data-testid={`input-${key}`}/></div>;
+    const save = (submit: boolean) => {
+      if(submit&&(!form.title.trim()||!form.problem.trim())){setToast(t('required'));return;}
+      const updated={...form,status:submit?'Pending Review':form.status==='Approved'||form.status==='Rejected'?'Draft':form.status} as Proposal;
+      setForm(updated);
+      updateStore(old=>({...old,proposals:old.proposals.map(item=>item.id===currentStudentId||item.id===studentProposal.id?{...updated,id:item.id,ownerId:currentStudentId,steps:submit?item.steps.map(step=>({...step,approved:false,comment:''})):item.steps):item),activity:[submit?t('submitted'):t('saved'),...old.activity].slice(0,8)}));
+      setToast(submit?t('submitted'):t('saved'));navigateTo('/dashboard');
     };
-    const textarea = (key:keyof Proposal,label:string,tall=false) => <div className="field full"><label htmlFor={`field-${key}`}>{label}</label><textarea id={`field-${key}`} className={tall?'tall':''} value={form[key] as string} onChange={e=>setField(key,e.target.value)} data-testid={`input-${key}`}/></div>;
-    return <><Header/><main className="page-wrap fade-in"><Notice/>
-      <div className="page-head" style={{marginTop:30}}><div><div className="eyebrow">01 / {t('stepProposal')}</div><h1 className="page-title">{t('proposalPageTitle')}</h1><p className="page-subtitle">{t('proposalPageDesc')}</p></div><StatusBadge status={data.proposal.status} label={statusLabel(data.proposal.status)}/></div>
-      <div className="grid-main">
-        <section className="panel panel-pad">
-          <div className="form-grid">
-            <div className="field full"><label htmlFor="field-title">{t('title')}</label><input id="field-title" value={form.title} onChange={e=>setField('title',e.target.value)} data-testid="input-title"/></div>
-            <div className="field"><label htmlFor="field-field">{t('field')}</label><input id="field-field" value={form.field} onChange={e=>setField('field',e.target.value)} data-testid="input-field"/></div>
-            <div className="field"><label htmlFor="field-language">{t('language')}</label><select id="field-language" value={form.researchLanguage} onChange={e=>setField('researchLanguage',e.target.value)} data-testid="select-research-language"><option value="English">English</option><option value="French">Français</option><option value="Arabic">العربية</option><option value="Other">{t('languageOther')}</option></select></div>
-            {textarea('problem',t('problem'),true)}
-            {textarea('objectives',t('objectives'))}
-            {textarea('methodology',t('methodology'))}
-            {textarea('outline',t('outline'))}
-          </div>
-          <div className="form-actions"><span className="muted" style={{fontSize:11}}>{t('local')}</span><div style={{display:'flex',gap:9,flexWrap:'wrap'}}><button className="btn btn-outline" onClick={()=>save(false)} data-testid="button-save-proposal">{t('saveDraft')}</button><button className="btn btn-teal" onClick={()=>save(true)} data-testid="button-submit-proposal">{t('submit')} <ArrowRight size={14}/></button></div></div>
-        </section>
-        <aside className="stack">
-          <section className="panel panel-pad"><div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}><h2 className="section-title">{t('status')}</h2><StatusBadge status={data.proposal.status} label={statusLabel(data.proposal.status)}/></div><div className="divider"/><p className="section-caption">{data.proposal.status==='Draft'?t('draftNotice'):data.proposal.status==='Pending Review'?t('awaiting'):data.proposal.status==='Modifications Requested'?data.proposal.feedback:data.proposal.status==='Approved'?t('available'):data.proposal.feedback}</p></section>
-          <section className="panel panel-pad"><h2 className="section-title">{t('supervisor')}</h2><div className="profile-line" style={{marginTop:16}}><div className="avatar">MK</div><div><strong style={{fontSize:13}}>Dr. Meriem Kaci</strong><div className="muted" style={{fontSize:11,marginTop:4}}>{t('academicField')}</div></div></div><p className="section-caption" style={{marginTop:16}}>{t('local')}</p></section>
-          <div className="callout">{t('honest')}</div>
-        </aside>
-      </div>
-    </main></>;
-  }
+    return <main className="page-wrap fade-in">{notice()}{pageHead(`01 / ${t('student')}`,t('proposal'),t('proposalPageDesc'),statusBadge(studentProposal.status))}
+      <div className="grid-main"><section className="panel panel-pad"><div className="form-grid">
+        <div className="field full"><label htmlFor="field-title">{t('title')}</label><input id="field-title" dir="auto" lang={researchLangCode(form.researchLanguage)} value={form.title} onChange={e=>setForm({...form,title:e.target.value})} data-testid="input-title"/></div>
+        <div className="field"><label htmlFor="field-field">{t('field')}</label><input id="field-field" value={form.field} onChange={e=>setForm({...form,field:e.target.value})} data-testid="input-field"/></div>
+        <div className="field"><label htmlFor="field-language">{t('language')}</label><select id="field-language" value={form.researchLanguage} onChange={e=>setForm({...form,researchLanguage:e.target.value})} data-testid="select-research-language"><option>English</option><option>French</option><option>Arabic</option><option>Other</option></select></div>
+        {field('problem',t('problem'),true)}{field('objectives',t('objectives'))}{field('methodology',t('methodology'))}{field('outline',t('outline'))}
+      </div><div className="form-actions"><span className="muted form-footnote">{t('local')}</span><div className="button-row"><button className="btn btn-outline" onClick={()=>save(false)} data-testid="button-save-proposal">{t('saveDraft')}</button><button className="btn btn-teal" onClick={()=>save(true)} data-testid="button-submit-proposal">{t('submit')} <ArrowRight size={14}/></button></div></div></section>
+      <aside className="stack"><section className="panel panel-pad"><div className="panel-topline"><h2 className="section-title">{t('status')}</h2>{statusBadge(studentProposal.status)}</div><div className="divider"/><p className="section-caption">{studentProposal.feedback||t('awaiting')}</p></section><section className="panel panel-pad"><h2 className="section-title">{t('supervisor')}</h2><div className="profile-line" style={{marginTop:16}}><div className="avatar avatar-muted">MK</div><div><strong>Dr. Meriem Kaci</strong><div className="muted" style={{fontSize:11,marginTop:4}}>Educational Technology</div></div></div></section><div className="callout">{t('honest')}</div></aside></div>
+    </main>;
+  };
 
-  function ReviewPage() {
-    const [notes,setNotes] = useState(data.notes);
-    useEffect(()=>setNotes(data.notes),[data.notes]);
-    const decide = (status:Status) => {
-      if(status==='Rejected' && !window.confirm(t('rejectConfirm'))) return;
-      const feedback = notes.trim() || (status==='Approved'?t('approvedFeedback'):status==='Rejected'?t('rejectedFeedback'):t('requestFeedback'));
-      updateData({notes});
-      setStatus(status,feedback);
+  const reviewPage = () => {
+    const projects = role==='supervisor' ? assignedProjects : role==='department' ? sampleProjects : role==='central' ? store.proposals : [];
+    const project=projects.find(item=>item.id===reviewSelectedId)||projects[0];
+    const notes=project ? store.reviewerNotes[project.id] || '' : '';
+    const activeStep=project?.steps.find(step=>!step.approved);
+    const reviewerAuthorized = !!project && !!activeStep && currentUser.state==='demo-approved' && (role===activeStep.role || (role==='supervisor'&&activeStep.role==='supervisor'&&project.supervisorId===currentUser.id));
+    const decide=(decision:'Approved'|'Modifications Requested'|'Rejected')=>{
+      if(!project||!reviewerAuthorized)return;
+      if(decision==='Rejected'&&!window.confirm(t('rejectConfirm')))return;
+      const feedback=notes.trim()||t('actionSaved');
+      updateStore(old=>({...old,proposals:old.proposals.map(item=>{
+        if(item.id!==project.id)return item;
+        const steps=item.steps.map(step=>step.id===activeStep!.id?{...step,approved:decision==='Approved',comment:feedback}:step);
+        const done=steps.length>0&&steps.every(step=>step.approved);
+        return {...item,steps,status:decision==='Rejected'?'Rejected':decision==='Modifications Requested'?'Modifications Requested':done?'Approved':'Pending Review',feedback};
+      }),reviewerNotes:{...old.reviewerNotes,[project.id]:notes},activity:[`${project.title}: ${decision==='Approved'?'approval step completed':decision==='Rejected'?'rejected':'modifications requested'}.`,...old.activity].slice(0,8)}));
+      setToast(t('actionSaved'));
     };
-    return <><Header/><main className="page-wrap fade-in"><Notice/>
-      <div className="page-head" style={{marginTop:30}}><div><div className="eyebrow">02 / {t('reviewerOnly')}</div><h1 className="page-title">{t('reviewTitle')}</h1><p className="page-subtitle">{t('reviewDesc')}</p></div><div className="status" style={{color:'#357e71',background:'#e4f0ed'}}><UserRound size={13}/>{t('roleReviewer')}</div></div>
-      <div className="grid-main">
-        <section className="panel panel-pad">
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12}}><div><div className="meta-label">{t('queue')}</div><h2 className="section-title" style={{fontSize:19,marginTop:8}}>{t('reviewProposal')}</h2></div><StatusBadge status={data.proposal.status} label={statusLabel(data.proposal.status)}/></div>
-          {!data.proposal.title ? <div className="callout" style={{marginTop:20}}>{t('noProposal')}</div> : <>
-          <div className="divider"/>
-          <div className="meta-label">{t('title')}</div><h3 style={{fontSize:18,color:'#233f58',lineHeight:1.4,margin:'8px 0 15px'}}>{data.proposal.title}</h3>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:17}}>
-            {[[t('field'),data.proposal.field],[t('language'),data.proposal.researchLanguage]].map(([a,b])=><div key={a}><div className="meta-label">{a}</div><div className="meta-value">{b}</div></div>)}
-          </div>
-          {[['problem',t('problem')],['objectives',t('objectives')],['methodology',t('methodology')],['outline',t('outline')]].map(([key,label])=><div key={key} style={{marginTop:18}}><div className="meta-label">{label}</div><p style={{fontSize:13,color:'#526a7b',lineHeight:1.7,whiteSpace:'pre-line',margin:'7px 0 0'}}>{data.proposal[key as keyof Proposal]}</p></div>)}
-          </>}
-        </section>
-        <aside className="stack">
-          <section className="panel panel-pad">
-            <h2 className="section-title">{t('reviewerNotes')}</h2><p className="section-caption">{t('local')}</p>
-            <div className="field" style={{marginTop:18}}><textarea className="tall" value={notes} onChange={e=>setNotes(e.target.value)} placeholder={t('notesHint')} data-testid="input-review-notes"/></div>
-            <div className="review-actions">
-              <button className="btn btn-teal" onClick={()=>decide('Approved')} data-testid="button-approve"><Check size={14}/>{t('approve')}</button>
-              <button className="btn btn-soft" onClick={()=>decide('Modifications Requested')} data-testid="button-request-changes">{t('requestChanges')}</button>
-              <button className="btn btn-danger" onClick={()=>decide('Rejected')} data-testid="button-reject">{t('reject')}</button>
-            </div>
-          </section>
-          <section className="panel panel-pad"><h2 className="section-title">{t('feedback')}</h2><p className="section-caption" style={{marginTop:9}}>{data.proposal.feedback || t('noFeedback')}</p></section>
-          <div className="callout"><strong>{t('demo')}.</strong> {t('honest')}</div>
-        </aside>
-      </div>
-    </main></>;
-  }
+    return <main className="page-wrap fade-in">{notice()}{pageHead(`02 / ${t(roleText[role])}`,t('reviewTitle'),t('reviewDesc'))}
+      {!['supervisor','department','central'].includes(role)?<div className="empty-state panel"><LockKeyhole size={24}/><h2>{t('rolePreview')}</h2><button className="btn btn-primary" onClick={()=>setRole('supervisor')}>{t('supervisor')}</button></div>:
+      <div className="grid-main"><div className="stack"><section className="panel panel-pad"><div className="section-heading-row"><div><div className="meta-label">{t('queue')}</div><h2 className="section-title" style={{marginTop:8}}>{project?project.ownerName:t('noAssigned')}</h2></div>{project&&statusBadge(project.status)}</div>
+        {!project?<div className="empty-inline"><ClipboardCheck size={18}/>{t('noAssigned')}</div>:<><div className="divider"/><div className="review-project-select"><label className="field"><span>{t('queue')}</span><select value={project.id} onChange={e=>setReviewSelectedId(e.target.value)}>{projects.map(item=><option value={item.id} key={item.id}>{item.ownerName} — {item.title}</option>)}</select></label></div><h3 className="review-project-title">{project.title}</h3><div className="meta-label">{t('currentStep')}</div><p className="meta-value">{activeStep?.label||t('completeWorkflow')} {activeStep&&<span className="muted"> · {t(roleText[activeStep.role])}</span>}</p>
+        {[['problem',t('problem')],['objectives',t('objectives')],['methodology',t('methodology')],['outline',t('outline')]].map(([key,label])=><div key={key} className="review-section"><div className="meta-label">{label}</div><p dir="auto" lang={researchLangCode(project.researchLanguage)}>{project[key as keyof Proposal] as string}</p></div>)}
+        <div className="steps compact-steps">{project.steps.map((step,index)=><div className={`step ${step.approved?'done':index===project.steps.findIndex(item=>!item.approved)?'':'pending'}`} key={step.id}><span className="step-icon">{step.approved?<Check size={12}/>:index+1}</span><div><strong>{step.label}</strong><small>{step.approved?t('completed'):`${t('assignedTo')}: ${t(roleText[step.role])}`}</small>{step.comment&&<small dir="auto">{step.comment}</small>}</div></div>)}</div></>}</section></div>
+      {project&&<aside className="stack"><section className="panel panel-pad"><h2 className="section-title">{t('reviewerNotes')}</h2><p className="section-caption">{t('local')}</p><div className="field" style={{marginTop:16}}><textarea className="tall" dir="auto" value={notes} onChange={e=>updateStore(old=>({...old,reviewerNotes:{...old.reviewerNotes,[project.id]:e.target.value}}))} placeholder={t('notesHint')} data-testid="input-review-notes"/></div>
+        {!reviewerAuthorized?<div className="callout" style={{marginTop:15}}>{activeStep?`${t('currentStep')}: ${t(roleText[activeStep.role])}. ${t('notSecurity')}`:t('completeWorkflow')}</div>:<div className="review-actions"><button className="btn btn-teal" onClick={()=>decide('Approved')} data-testid="button-approve"><Check size={14}/>{t('approve')}</button><button className="btn btn-soft" onClick={()=>decide('Modifications Requested')} data-testid="button-request-changes">{t('requestChanges')}</button><button className="btn btn-danger" onClick={()=>decide('Rejected')} data-testid="button-reject">{t('reject')}</button></div>}
+      </section><section className="panel panel-pad"><h2 className="section-title">{t('feedback')}</h2><p className="section-caption" dir="auto" style={{marginTop:9}}>{project.feedback||t('noFeedback')}</p></section></aside>}</div>}
+    </main>;
+  };
 
-  function EditorPage() {
-    const [draft,setDraft] = useState(data.draft || `Introduction\n\nThis research explores the role of digital learning practices in Algerian public universities. It begins by examining the context in which students access learning resources and participate in blended courses.\n\nResearch focus\n\nThe study considers access, study habits and student engagement as connected dimensions of the learning experience.`);
-    const editorRef = useRef<HTMLTextAreaElement>(null);
-    const writingRTL = data.proposal.researchLanguage.toLowerCase().includes('arab') || data.proposal.researchLanguage.includes('العربية');
-    const insert = (prefix:string) => {
-      const el=editorRef.current;if(!el)return;
-      const start=el.selectionStart,end=el.selectionEnd;
-      const next=draft.slice(0,start)+prefix+draft.slice(start,end)+draft.slice(end);
-      setDraft(next); window.setTimeout(()=>{el.focus();el.setSelectionRange(start+prefix.length,end+prefix.length);},0);
-    };
-    const save = () => { updateData({draft});setToast(t('draftSaved')); };
-    const unlocked=data.proposal.status==='Approved';
-    return <><Header/><main className="page-wrap fade-in"><Notice/>
-      <div className="page-head" style={{marginTop:30}}><div><div className="eyebrow">03 / {t('stepWriting')}</div><h1 className="page-title">{t('editorTitle')}</h1><p className="page-subtitle">{t('editorDesc')}</p></div>{unlocked?<button className="btn btn-teal" onClick={save} data-testid="button-save-draft"><Save size={15}/>{t('save')}</button>:null}</div>
-      {!unlocked ? <div className="panel panel-pad" style={{maxWidth:760,margin:'0 auto',padding:'38px'}}>
-        <div className="locked"><LockKeyhole size={17}/><div><strong>{t('lockedTitle')}.</strong> {t('lockedDesc')}</div></div>
-        <div style={{textAlign:'center',padding:'28px 12px 5px'}}><div className="avatar" style={{margin:'0 auto 16px',width:54,height:54,borderRadius:18}}><BookOpen size={22}/></div><h2 className="section-title" style={{fontSize:21}}>{t('editorTitle')}</h2><p className="section-caption" style={{maxWidth:450,margin:'8px auto 19px'}}>{t('lockedDesc')}</p><button className="btn btn-primary" onClick={()=>navigate('/review')} data-testid="button-open-review">{t('unlock')} <ArrowRight size={14}/></button></div>
-      </div> : <div className="editor-layout">
-        <section className="panel" style={{overflow:'hidden'}}>
-          <div className="editor-toolbar">
-            <button className="tool-btn" aria-label={t('markTitle')} title={t('markTitle')} onClick={()=>insert('# ')} data-testid="button-editor-title"><Heading1 size={17}/></button>
-            <button className="tool-btn" aria-label={t('markHeading')} title={t('markHeading')} onClick={()=>insert('## ')} data-testid="button-editor-heading"><Heading2 size={16}/></button>
-            <button className="tool-btn" aria-label={t('markParagraph')} title={t('markParagraph')} onClick={()=>insert('\n')} data-testid="button-editor-paragraph"><AlignLeft size={16}/></button>
-            <span style={{marginLeft:'auto',fontSize:10,color:'#7c8e99',display:'inline-flex',alignItems:'center',gap:5}}><Languages size={13}/>{data.proposal.researchLanguage}</span>
-          </div>
-          <div style={{padding:'20px clamp(16px,5vw,66px) 36px'}}>
-            <div className="meta-label" style={{marginBottom:14}}>{data.proposal.title}</div>
-            <textarea ref={editorRef} className="editor-paper" dir={writingRTL?'rtl':'ltr'} value={draft} onChange={e=>setDraft(e.target.value)} placeholder={t('placeholder')} data-testid="input-editor-content" style={{width:'100%',border:0,resize:'vertical',background:'transparent',minHeight:500}}/>
-            <div style={{fontSize:10,color:'#9aa5ad',textAlign:'end'}}>{t('languageDirection')}</div>
-          </div>
-        </section>
-        <aside className="stack">
-          <section className="panel panel-pad"><h2 className="section-title">{t('notes')}</h2><p className="section-caption" style={{marginTop:6}}>{t('sample')} · {data.proposal.researchLanguage}</p>
-            {[t('noteOne'),t('noteTwo'),t('noteThree')].map((note,i)=><div className="notification" key={note}><span className="notification-mark"/><p>{note}</p></div>)}
-          </section>
-          <section className="panel panel-pad"><div className="meta-label">{t('currentStatus')}</div><div style={{marginTop:9}}><StatusBadge status={data.proposal.status} label={statusLabel(data.proposal.status)}/></div><p className="section-caption" style={{marginTop:12}}>{t('local')}</p></section>
-        </aside>
-      </div>}
-    </main></>;
-  }
+  const editorPage = () => {
+    const unlocked=workflowComplete(studentProposal)&&studentProposal.status==='Approved';
+    const writingRTL=studentProposal.researchLanguage.toLowerCase().includes('arab');
+    const insert=(prefix:string)=>{const el=editorRef.current;if(!el)return;const start=el.selectionStart,end=el.selectionEnd;const next=draft.slice(0,start)+prefix+draft.slice(start,end)+draft.slice(end);setDraft(next);window.setTimeout(()=>{el.focus();el.setSelectionRange(start+prefix.length,end+prefix.length);},0);};
+    return <main className="page-wrap fade-in">{notice()}{pageHead(`03 / ${t('stepWriting')}`,t('editorTitle'),t('editorDesc'),unlocked?<button className="btn btn-teal" onClick={()=>{updateStore(old=>({...old,draft}));setToast(t('draftSaved'));}}><Save size={15}/>{t('save')}</button>:undefined)}
+      {!unlocked?<div className="panel panel-pad locked-panel"><div className="locked"><LockKeyhole size={17}/><div><strong>{t('lockedTitle')}.</strong> {t('lockedDesc')}</div></div><div className="locked-content"><div className="avatar locked-avatar"><BookOpen size={22}/></div><h2>{t('editorTitle')}</h2><p>{t('lockedDesc')}</p><div className="callout">{t('currentStep')}: {studentProposal.steps.find(step=>!step.approved)?.label||t('completeWorkflow')}</div><button className="btn btn-primary" onClick={()=>navigateTo('/review')} style={{marginTop:18}}>{t('unlock')} <ArrowRight size={14}/></button></div></div>:<div className="editor-layout"><section className="panel editor-panel"><div className="editor-toolbar"><button className="tool-btn" aria-label={t('title')} title={t('title')} onClick={()=>insert('# ')}><Heading1 size={17}/></button><button className="tool-btn" aria-label={t('outline')} title={t('outline')} onClick={()=>insert('## ')}><Heading2 size={16}/></button><button className="tool-btn" aria-label={t('problem')} title={t('problem')} onClick={()=>insert('\n')}><AlignLeft size={16}/></button><span className="editor-language"><Languages size={13}/>{studentProposal.researchLanguage}</span></div><div className="editor-content"><div className="meta-label" dir="auto" lang={researchLangCode(studentProposal.researchLanguage)}>{studentProposal.title}</div><textarea ref={editorRef} className="editor-paper" dir={writingRTL?'rtl':'auto'} lang={researchLangCode(studentProposal.researchLanguage)} value={draft} onChange={e=>setDraft(e.target.value)} placeholder={t('placeholder')} data-testid="input-editor-content"/><div className="section-caption" style={{textAlign:'end'}}>{t('languageDirection')}</div></div></section><aside className="stack"><section className="panel panel-pad"><h2 className="section-title">{t('notes')}</h2><p className="section-caption">{t('sample')} · {studentProposal.researchLanguage}</p>{[t('noteOne'),t('noteTwo'),t('noteThree')].map(note=><div className="notification" key={note}><span className="notification-mark"/><p>{note}</p></div>)}</section><section className="panel panel-pad"><div className="meta-label">{t('currentStatus')}</div><div style={{marginTop:9}}>{statusBadge(studentProposal.status)}</div><p className="section-caption" style={{marginTop:12}}>{t('finalApproval')}</p></section></aside></div>}
+    </main>;
+  };
 
+  const fallback = () => <main className="page-wrap"><div className="panel panel-pad"><h1 className="page-title">{t('notFound')}</h1><Link href="/">{t('back')}</Link></div></main>;
   return <div className="app-shell">
     <Switch>
-      <Route path="/" component={Landing}/>
-      <Route path="/dashboard" component={Dashboard}/>
-      <Route path="/proposal" component={ProposalPage}/>
-      <Route path="/review" component={ReviewPage}/>
-      <Route path="/editor" component={EditorPage}/>
-      <Route><><Header/><main className="page-wrap"><div className="panel panel-pad"><h1 className="page-title">{t('notFound')}</h1><Link href="/">{t('back')}</Link></div></main></></Route>
+      <Route path="/">{landing()}</Route>
+      <Route path="/dashboard">{header()}{dashboard()}</Route>
+      <Route path="/proposal">{header()}{proposalPage()}</Route>
+      <Route path="/review">{header()}{reviewPage()}</Route>
+      <Route path="/editor">{header()}{editorPage()}</Route>
+      <Route path="/department">{header()}{departmentDashboard()}</Route>
+      <Route path="/administration">{header()}{centralDashboard()}</Route>
+      <Route>{fallback()}</Route>
     </Switch>
     {toast&&<div className="toast-message" role="status">{toast}</div>}
   </div>;
