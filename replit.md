@@ -1,6 +1,8 @@
-# [Project name]
+# Leeder
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+An experimental front-end prototype for Algerian universities to explore graduation research proposals, committee review, and academic writing workflows.
+
+This build uses realistic sample data and browser-local demo persistence only. It does not provide institutional authentication, secure storage, plagiarism detection, or actual academic approval.
 
 ## Run & Operate
 
@@ -30,7 +32,7 @@ _Populate as you build — non-obvious choices a reader couldn't infer from the 
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+Leeder demonstrates a multilingual student research workspace, proposal submission, a simulated committee decision flow, and an editor preview that is available only after demo approval.
 
 ## User preferences
 
