@@ -16,6 +16,18 @@ type Source = {
   note: string;
 };
 
+type SuggestedSource = {
+  id: string;
+  type: 'book' | 'article' | 'thesis' | 'other';
+  title: string;
+  author: string;
+  year: string;
+  publisher: string;
+  url: string;
+  doi: string;
+  provider: string;
+};
+
 type Props = {
   draft: string;
   onDraftChange: (value: string) => void;
@@ -134,6 +146,10 @@ export function ThesisEditor({ draft, onDraftChange, title, researchLanguage, st
   const editor = useRef<HTMLDivElement>(null);
   const [tab, setTab] = useState<'outline'|'sources'>('outline');
   const [sources, setSources] = useState<Source[]>([]);
+  const [topicSearch, setTopicSearch] = useState(title);
+  const [suggestions, setSuggestions] = useState<SuggestedSource[]>([]);
+  const [suggestionLoading, setSuggestionLoading] = useState(false);
+  const [suggestionError, setSuggestionError] = useState('');
   const [query, setQuery] = useState('');
   const [sourceForm, setSourceForm] = useState<Source | null>(null);
   const [citationSource, setCitationSource] = useState('');
@@ -150,7 +166,103 @@ export function ThesisEditor({ draft, onDraftChange, title, researchLanguage, st
     if (editor.current) editor.current.dir = nextDirection;
   }, [rtl, studentId]);
 
+
   const storageKey = 'leeder-sources-v1-' + studentId;
+
+  const searchAcademicSources = async (term: string) => {
+    const searchTerm = term.trim();
+    if (!searchTerm) return;
+    setSuggestionLoading(true);
+    setSuggestionError('');
+    try {
+      const [openAlexResponse, crossrefResponse] = await Promise.allSettled([
+        fetch('https://api.openalex.org/works?search=' + encodeURIComponent(searchTerm) + '&per-page=12&select=id,doi,display_name,publication_year,type,authorships,primary_location,biblio'),
+        fetch('https://api.crossref.org/works?query.bibliographic=' + encodeURIComponent(searchTerm) + '&rows=8'),
+      ]);
+      const found: SuggestedSource[] = [];
+      if (openAlexResponse.status === 'fulfilled' && openAlexResponse.value.ok) {
+        const data = await openAlexResponse.value.json();
+        (data.results || []).forEach((work: any) => {
+          const kind = String(work.type || '').toLowerCase();
+          if (!['article','book','dissertation','book-chapter','monograph'].includes(kind)) return;
+          const sourceName = work.primary_location?.source?.display_name || '';
+          const authors = (work.authorships || []).slice(0, 3).map((item: any) => item.author?.display_name).filter(Boolean).join('، ');
+          found.push({
+            id: String(work.id || work.doi || work.display_name),
+            type: kind === 'book' || kind === 'monograph' || kind === 'book-chapter' ? 'book' : kind === 'dissertation' ? 'thesis' : 'article',
+            title: String(work.display_name || ''),
+            author: authors || 'بيانات المؤلف غير متاحة',
+            year: work.publication_year ? String(work.publication_year) : '',
+            publisher: sourceName || 'OpenAlex',
+            url: String(work.primary_location?.landing_page_url || work.doi || work.id || ''),
+            doi: String(work.doi || ''),
+            provider: 'OpenAlex',
+          });
+        });
+      }
+      if (crossrefResponse.status === 'fulfilled' && crossrefResponse.value.ok) {
+        const data = await crossrefResponse.value.json();
+        (data.message?.items || []).forEach((work: any) => {
+          const kind = String(work.type || '').toLowerCase();
+          if (!['journal-article','book','book-chapter','monograph','dissertation'].includes(kind)) return;
+          const titleText = work.title?.[0];
+          if (!titleText) return;
+          const doi = String(work.DOI || '');
+          const authors = (work.author || []).slice(0, 3).map((item: any) => [item.given,item.family].filter(Boolean).join(' ')).filter(Boolean).join('، ');
+          found.push({
+            id: doi || titleText,
+            type: kind.includes('book') || kind === 'monograph' ? 'book' : kind === 'dissertation' ? 'thesis' : 'article',
+            title: String(titleText),
+            author: authors || 'بيانات المؤلف غير متاحة',
+            year: String(work.published?.['date-parts']?.[0]?.[0] || work.created?.['date-parts']?.[0]?.[0] || ''),
+            publisher: String(work['container-title']?.[0] || work.publisher || 'Crossref'),
+            url: doi ? 'https://doi.org/' + doi : String(work.URL || ''),
+            doi,
+            provider: 'Crossref',
+          });
+        });
+      }
+      const unique = new Map<string, SuggestedSource>();
+      found.forEach(item => {
+        const key = (item.doi || item.title).toLowerCase();
+        if (!unique.has(key)) unique.set(key, item);
+      });
+      setSuggestions([...unique.values()].slice(0, 14));
+      if (!unique.size) setSuggestionError('لم نعثر على سجلات مناسبة في قواعد البيانات المتصلة. جرّب صياغة أخرى أو البحث في Google.');
+    } catch {
+      setSuggestionError('تعذر الاتصال بقواعد البيانات الأكاديمية الآن. يمكنك إعادة المحاولة أو استخدام البحث في Google.');
+    } finally {
+      setSuggestionLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    setTopicSearch(title);
+    if (title.trim().length > 4) {
+      const timer = window.setTimeout(() => { void searchAcademicSources(title); }, 700);
+      return () => window.clearTimeout(timer);
+    }
+  }, [title, studentId]);
+
+  const addSuggestedSource = (item: SuggestedSource) => {
+    const nextSource: Source = {
+      id: crypto.randomUUID(),
+      type: item.type,
+      author: item.author,
+      title: item.title,
+      year: item.year,
+      publisher: item.publisher,
+      place: '',
+      edition: '',
+      editor: '',
+      url: item.url,
+      accessed: '',
+      note: 'سجل مقترح من ' + item.provider + '. تحقّق من بيانات النشر والتحكيم ومدى صلته قبل الاستشهاد به.',
+    };
+    const next = [...sources, nextSource];
+    setSources(next);
+    localStorage.setItem(storageKey, JSON.stringify(next));
+  };
   useEffect(() => {
     try { setSources(JSON.parse(localStorage.getItem(storageKey) || '[]')); } catch { setSources([]); }
   }, [storageKey]);
@@ -317,6 +429,25 @@ export function ThesisEditor({ draft, onDraftChange, title, researchLanguage, st
         <div className="thesis-side-note">{t.editorTip}</div>
       </div> : <div className="thesis-side-content">
         <div className="thesis-source-heading"><div><strong>{t.sources}</strong><small>{sources.length} {t.sourcesCount}</small></div><button className="thesis-add-source" onClick={()=>setSourceForm(emptySource())}><Plus size={15}/>{t.addSource}</button></div>
+
+        <div className="thesis-discovery">
+          <div className="thesis-discovery-title"><strong>اقتراح مصادر أكاديمية للموضوع</strong><span>OpenAlex · Crossref</span></div>
+          <input aria-label="موضوع البحث عن المراجع" value={topicSearch} onChange={e=>setTopicSearch(e.target.value)} placeholder="اكتب عنوان المذكرة أو كلمات مفتاحية..."/>
+          <div className="thesis-discovery-actions">
+            <button type="button" onClick={()=>void searchAcademicSources(topicSearch)} disabled={suggestionLoading}><Search size={13}/>{suggestionLoading?'جارٍ البحث...':'اقتراح مصادر'}</button>
+            <button type="button" onClick={()=>window.open('https://www.google.com/search?q='+encodeURIComponent(topicSearch.trim()),'_blank','noopener,noreferrer')} disabled={!topicSearch.trim()}>البحث في Google <span>↗</span></button>
+          </div>
+          <p className="thesis-source-disclaimer">هذه سجلات ببليوغرافية مفهرسة وليست ضمانًا للتحكيم العلمي. تحقّق من المجلة أو الجامعة والنص الأصلي قبل اعتماد المرجع. لا تُدرج النتائج في مراجعك إلا باختيارك.</p>
+          {suggestionError && <p className="thesis-discovery-message">{suggestionError}</p>}
+          {suggestions.length>0 && <div className="thesis-suggestion-list">
+            {suggestions.map(item=><article className="thesis-suggestion-card" key={item.id}>
+              <span>{item.type==='book'?'كتاب':item.type==='thesis'?'رسالة جامعية':'مقال / بحث'} · {item.provider}</span>
+              <strong>{item.title}</strong>
+              <small>{item.author}{item.year?' · '+item.year:''}{item.publisher?' · '+item.publisher:''}</small>
+              <div><button type="button" onClick={()=>addSuggestedSource(item)}>+ إضافة إلى مكتبتي</button>{item.url && <a href={item.url} target="_blank" rel="noreferrer">فتح المصدر ↗</a>}</div>
+            </article>)}
+          </div>}
+        </div>
         <label className="thesis-search"><Search size={15}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder={t.search}/></label>
         <div className="thesis-source-list">
           {filtered.length===0?<p className="thesis-empty">{t.noSources}</p>:filtered.map(source=><article className="thesis-source-card" key={source.id}>
