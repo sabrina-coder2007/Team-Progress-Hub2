@@ -792,24 +792,41 @@ using (
   or public.is_assigned_supervisor(supervisor_profile_id)
 );
 
-create policy thesis_projects_student_update on public.thesis_projects
-for update to authenticated
-using (
-  exists (
-    select 1
-    from public.cohort_enrollments ce
-    join public.student_profiles sp on sp.id = ce.student_profile_id
-    where ce.id = enrollment_id and sp.user_id = auth.uid()
-  )
+-- Student edits are exposed through a narrow RPC so students cannot change
+-- workflow status, supervisor assignment, institution scope, or enrollment links.
+create or replace function public.update_my_thesis_details(
+  target_project_id uuid,
+  new_title text,
+  new_research_field text
 )
-with check (
-  exists (
-    select 1
-    from public.cohort_enrollments ce
-    join public.student_profiles sp on sp.id = ce.student_profile_id
-    where ce.id = enrollment_id and sp.user_id = auth.uid()
-  )
-);
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $
+begin
+  update public.thesis_projects tp
+  set title = new_title,
+      research_field = new_research_field,
+      updated_at = now()
+  where tp.id = target_project_id
+    and exists (
+      select 1
+      from public.cohort_enrollments ce
+      join public.student_profiles sp on sp.id = ce.student_profile_id
+      where ce.id = tp.enrollment_id
+        and sp.user_id = auth.uid()
+        and sp.institution_id = tp.institution_id
+    );
+
+  if not found then
+    raise exception 'Project not found or access denied';
+  end if;
+end;
+$;
+
+revoke all on function public.update_my_thesis_details(uuid, text, text) from public;
+grant execute on function public.update_my_thesis_details(uuid, text, text) to authenticated;
 
 create policy thesis_projects_staff_update on public.thesis_projects
 for update to authenticated
@@ -845,7 +862,18 @@ with check (
 create policy thesis_projects_create_by_staff on public.thesis_projects
 for insert to authenticated
 with check (
-  public.has_institution_role(institution_id, array['institution_admin', 'department_admin'])
+  exists (
+    select 1
+    from public.cohort_enrollments ce
+    join public.graduation_cohorts gc on gc.id = ce.cohort_id
+    where ce.id = enrollment_id
+      and gc.institution_id = institution_id
+      and public.has_institution_role(
+        gc.institution_id,
+        array['institution_admin', 'department_admin'],
+        gc.department_id
+      )
+  )
 );
 
 -- Audit records are append-only for ordinary users.
