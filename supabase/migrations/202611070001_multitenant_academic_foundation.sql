@@ -534,7 +534,7 @@ using (user_id = auth.uid() or public.is_platform_admin());
 
 -- Institution requests are submitted only through a trusted Edge Function.
 -- Do not grant direct client INSERT; the function uses the server-side service role.
-revoke insert on public.institution_requests from anon, authenticated;
+revoke insert on public.institution_requests from public, anon, authenticated;
 
 create policy institution_requests_admin_read on public.institution_requests
 for select to authenticated
@@ -837,8 +837,8 @@ grant execute on function public.update_my_thesis_details(uuid, text, text) to a
 
 -- Restrict direct staff updates to explicitly approved columns.
 -- Supervisor assignment will be handled by a separately authorized RPC.
-revoke update on public.thesis_projects from anon, authenticated;
-grant update (title, research_field, status, updated_at)
+revoke update on public.thesis_projects from public, anon, authenticated;
+grant update (title, research_field, updated_at)
   on public.thesis_projects to authenticated;
 
 create policy thesis_projects_staff_update on public.thesis_projects
@@ -891,7 +891,7 @@ with check (
 
 -- Audit records are written only by trusted server-side code (service role).
 -- Ordinary clients may read within scope but cannot forge or alter audit events.
-revoke insert, update, delete on public.audit_logs from anon, authenticated;
+revoke insert, update, delete on public.audit_logs from public, anon, authenticated;
 
 create policy audit_logs_read_scope on public.audit_logs
 for select to authenticated
