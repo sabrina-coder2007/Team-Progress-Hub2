@@ -3,6 +3,8 @@
 -- Apply to a NEW Supabase project after reviewing the migration.
 -- Graduation-year rules are configured per training program, never hard-coded by institution.
 
+begin;
+
 create extension if not exists pgcrypto;
 
 do $$ begin
@@ -421,11 +423,21 @@ as $$
 $$;
 
 -- Keep each cohort's graduation year consistent with its institution-owned program.
+-- These authorization helpers are used by authenticated RLS policies only.
+revoke all on function public.is_platform_admin() from public;
+revoke all on function public.is_institution_member(uuid) from public;
+revoke all on function public.has_institution_role(uuid, text[], uuid) from public;
+revoke all on function public.is_assigned_supervisor(uuid) from public;
+grant execute on function public.is_platform_admin() to authenticated;
+grant execute on function public.is_institution_member(uuid) to authenticated;
+grant execute on function public.has_institution_role(uuid, text[], uuid) to authenticated;
+grant execute on function public.is_assigned_supervisor(uuid) to authenticated;
+
 create or replace function public.validate_graduation_cohort_program()
 returns trigger
 language plpgsql
 set search_path = public
-as $
+as $$
 declare
   configured_graduation_year smallint;
 begin
@@ -447,7 +459,7 @@ begin
 
   return new;
 end;
-$;
+$$;
 
 drop trigger if exists graduation_cohorts_validate_program on public.graduation_cohorts;
 create trigger graduation_cohorts_validate_program
@@ -520,14 +532,9 @@ create policy platform_admins_select on public.platform_admins
 for select to authenticated
 using (user_id = auth.uid() or public.is_platform_admin());
 
--- Public institution requests are pending-only. Review and approval are central-admin actions.
-create policy institution_requests_submit on public.institution_requests
-for insert to anon, authenticated
-with check (
-  status = 'pending'
-  and reviewed_by is null
-  and reviewed_at is null
-);
+-- Institution requests are submitted only through a trusted Edge Function.
+-- Do not grant direct client INSERT; the function uses the server-side service role.
+revoke insert on public.institution_requests from anon, authenticated;
 
 create policy institution_requests_admin_read on public.institution_requests
 for select to authenticated
@@ -803,7 +810,7 @@ returns void
 language plpgsql
 security definer
 set search_path = public
-as $
+as $$
 begin
   update public.thesis_projects tp
   set title = new_title,
@@ -823,10 +830,16 @@ begin
     raise exception 'Project not found or access denied';
   end if;
 end;
-$;
+$$;
 
 revoke all on function public.update_my_thesis_details(uuid, text, text) from public;
 grant execute on function public.update_my_thesis_details(uuid, text, text) to authenticated;
+
+-- Restrict direct staff updates to explicitly approved columns.
+-- Supervisor assignment will be handled by a separately authorized RPC.
+revoke update on public.thesis_projects from anon, authenticated;
+grant update (title, research_field, status, updated_at)
+  on public.thesis_projects to authenticated;
 
 create policy thesis_projects_staff_update on public.thesis_projects
 for update to authenticated
@@ -876,7 +889,10 @@ with check (
   )
 );
 
--- Audit records are append-only for ordinary users.
+-- Audit records are written only by trusted server-side code (service role).
+-- Ordinary clients may read within scope but cannot forge or alter audit events.
+revoke insert, update, delete on public.audit_logs from anon, authenticated;
+
 create policy audit_logs_read_scope on public.audit_logs
 for select to authenticated
 using (
@@ -885,14 +901,6 @@ using (
   or public.has_institution_role(institution_id, array['department_admin'], department_id)
 );
 
-create policy audit_logs_insert_scope on public.audit_logs
-for insert to authenticated
-with check (
-  actor_id = auth.uid()
-  and (
-    public.is_platform_admin()
-    or public.is_institution_member(institution_id)
-  )
-);
+-- No client INSERT, UPDATE, or DELETE policies are intentionally defined for audit_logs.
 
--- No UPDATE or DELETE policies are intentionally defined for audit_logs.
+commit;
