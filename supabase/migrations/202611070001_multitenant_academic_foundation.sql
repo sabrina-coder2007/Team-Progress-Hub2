@@ -286,7 +286,7 @@ create table if not exists public.cohort_enrollments (
     on delete restrict,
   foreign key (group_id, institution_id)
     references public.academic_groups(id, institution_id)
-    on delete set null
+    on delete restrict
 );
 
 create table if not exists public.thesis_projects (
@@ -304,7 +304,7 @@ create table if not exists public.thesis_projects (
     on delete restrict,
   foreign key (supervisor_profile_id, institution_id)
     references public.supervisor_profiles(id, institution_id)
-    on delete set null
+    on delete restrict
 );
 
 create table if not exists public.audit_logs (
@@ -404,6 +404,41 @@ as $$
       and sp.is_active = true
   );
 $$;
+
+-- Keep each cohort's graduation year consistent with its institution-owned program.
+create or replace function public.validate_graduation_cohort_program()
+returns trigger
+language plpgsql
+set search_path = public
+as $
+declare
+  configured_graduation_year smallint;
+begin
+  select tp.graduation_year_number
+    into configured_graduation_year
+  from public.training_programs tp
+  where tp.id = new.training_program_id
+    and tp.institution_id = new.institution_id
+    and tp.department_id = new.department_id
+    and tp.is_active = true;
+
+  if configured_graduation_year is null then
+    raise exception 'Training program is missing, inactive, or outside this institution';
+  end if;
+
+  if new.graduation_year_number <> configured_graduation_year then
+    raise exception 'Cohort graduation year must match the institution training program';
+  end if;
+
+  return new;
+end;
+$;
+
+drop trigger if exists graduation_cohorts_validate_program on public.graduation_cohorts;
+create trigger graduation_cohorts_validate_program
+before insert or update of institution_id, department_id, training_program_id, graduation_year_number
+on public.graduation_cohorts
+for each row execute function public.validate_graduation_cohort_program();
 
 -- Updated-at trigger for mutable records.
 create or replace function public.set_updated_at()
@@ -633,7 +668,15 @@ with check (
 create policy cohort_enrollments_read_scope on public.cohort_enrollments
 for select to authenticated
 using (
-  public.has_institution_role(institution_id, array['institution_admin', 'department_admin'])
+  exists (
+    select 1 from public.graduation_cohorts gc
+    where gc.id = cohort_id
+      and public.has_institution_role(
+        gc.institution_id,
+        array['institution_admin', 'department_admin'],
+        gc.department_id
+      )
+  )
   or exists (
     select 1 from public.student_profiles sp
     where sp.id = student_profile_id and sp.user_id = auth.uid()
@@ -643,16 +686,42 @@ using (
 create policy cohort_enrollments_manage on public.cohort_enrollments
 for all to authenticated
 using (
-  public.has_institution_role(institution_id, array['institution_admin', 'department_admin'])
+  exists (
+    select 1 from public.graduation_cohorts gc
+    where gc.id = cohort_id
+      and public.has_institution_role(
+        gc.institution_id,
+        array['institution_admin', 'department_admin'],
+        gc.department_id
+      )
+  )
 )
 with check (
-  public.has_institution_role(institution_id, array['institution_admin', 'department_admin'])
+  exists (
+    select 1 from public.graduation_cohorts gc
+    where gc.id = cohort_id
+      and public.has_institution_role(
+        gc.institution_id,
+        array['institution_admin', 'department_admin'],
+        gc.department_id
+      )
+  )
 );
 
 create policy thesis_projects_read_scope on public.thesis_projects
 for select to authenticated
 using (
-  public.has_institution_role(institution_id, array['institution_admin', 'department_admin'])
+  exists (
+    select 1
+    from public.cohort_enrollments ce
+    join public.graduation_cohorts gc on gc.id = ce.cohort_id
+    where ce.id = enrollment_id
+      and public.has_institution_role(
+        gc.institution_id,
+        array['institution_admin', 'department_admin'],
+        gc.department_id
+      )
+  )
   or exists (
     select 1
     from public.cohort_enrollments ce
@@ -684,11 +753,31 @@ with check (
 create policy thesis_projects_staff_update on public.thesis_projects
 for update to authenticated
 using (
-  public.has_institution_role(institution_id, array['institution_admin', 'department_admin'])
+  exists (
+    select 1
+    from public.cohort_enrollments ce
+    join public.graduation_cohorts gc on gc.id = ce.cohort_id
+    where ce.id = enrollment_id
+      and public.has_institution_role(
+        gc.institution_id,
+        array['institution_admin', 'department_admin'],
+        gc.department_id
+      )
+  )
   or public.is_assigned_supervisor(supervisor_profile_id)
 )
 with check (
-  public.has_institution_role(institution_id, array['institution_admin', 'department_admin'])
+  exists (
+    select 1
+    from public.cohort_enrollments ce
+    join public.graduation_cohorts gc on gc.id = ce.cohort_id
+    where ce.id = enrollment_id
+      and public.has_institution_role(
+        gc.institution_id,
+        array['institution_admin', 'department_admin'],
+        gc.department_id
+      )
+  )
   or public.is_assigned_supervisor(supervisor_profile_id)
 );
 
