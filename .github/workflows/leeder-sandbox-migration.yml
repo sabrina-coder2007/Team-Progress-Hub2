@@ -15,7 +15,6 @@ permissions:
 jobs:
   migration:
     runs-on: ubuntu-latest
-    environment: leeder-sandbox
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.LEEDER_SANDBOX_DB_PASSWORD }}
