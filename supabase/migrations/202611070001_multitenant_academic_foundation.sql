@@ -422,6 +422,20 @@ as $$
   );
 $$;
 
+-- Supervisor access is limited to records tied to projects assigned to that supervisor.
+create or replace function public.is_supervisor_assigned_to_enrollment(target_enrollment_id uuid)
+returns boolean language sql stable security definer set search_path = public as $
+ select exists (select 1 from public.thesis_projects tp join public.supervisor_profiles sp on sp.id=tp.supervisor_profile_id join public.institution_memberships im on im.institution_id=sp.institution_id and im.user_id=sp.user_id and im.role='supervisor' and im.is_active=true where tp.enrollment_id=target_enrollment_id and sp.user_id=auth.uid() and sp.is_active=true);
+$$;
+create or replace function public.is_supervisor_assigned_to_student_profile(target_student_profile_id uuid)
+returns boolean language sql stable security definer set search_path = public as $
+ select exists (select 1 from public.cohort_enrollments ce join public.thesis_projects tp on tp.enrollment_id=ce.id join public.supervisor_profiles sp on sp.id=tp.supervisor_profile_id join public.institution_memberships im on im.institution_id=sp.institution_id and im.user_id=sp.user_id and im.role='supervisor' and im.is_active=true where ce.student_profile_id=target_student_profile_id and sp.user_id=auth.uid() and sp.is_active=true);
+$$;
+revoke all on function public.is_supervisor_assigned_to_enrollment(uuid) from public;
+revoke all on function public.is_supervisor_assigned_to_student_profile(uuid) from public;
+grant execute on function public.is_supervisor_assigned_to_enrollment(uuid) to authenticated;
+grant execute on function public.is_supervisor_assigned_to_student_profile(uuid) to authenticated;
+
 -- Keep each cohort's graduation year consistent with its institution-owned program.
 -- These authorization helpers are used by authenticated RLS policies only.
 revoke all on function public.is_platform_admin() from public;
@@ -466,6 +480,45 @@ create trigger graduation_cohorts_validate_program
 before insert or update of institution_id, department_id, training_program_id, graduation_year_number
 on public.graduation_cohorts
 for each row execute function public.validate_graduation_cohort_program();
+
+-- Validate that student, cohort and group belong to the same academic scope.
+create or replace function public.validate_cohort_enrollment_scope()
+returns trigger language plpgsql security definer set search_path = public as $
+declare cd uuid; cp uuid; cs uuid; cstate public.cohort_status; sd uuid; spid uuid; ss uuid; gcid uuid;
+begin
+ select department_id,training_program_id,specialization_id,status into cd,cp,cs,cstate from public.graduation_cohorts where id=new.cohort_id and institution_id=new.institution_id;
+ if cd is null then raise exception 'Cohort is missing or outside this institution'; end if;
+ select department_id,training_program_id,specialization_id into sd,spid,ss from public.student_profiles where id=new.student_profile_id and institution_id=new.institution_id;
+ if sd is null or sd<>cd or spid<>cp or ss<>cs then raise exception 'Student academic record does not match the graduation cohort'; end if;
+ if new.group_id is not null then
+  select cohort_id into gcid from public.academic_groups where id=new.group_id and institution_id=new.institution_id;
+  if gcid is distinct from new.cohort_id then raise exception 'Academic group must belong to the selected graduation cohort'; end if;
+ end if;
+ if new.status='registered' then
+  if cstate<>'open' then raise exception 'Student registration is allowed only while the cohort is open'; end if;
+  if new.eligibility_confirmed_at is null then raise exception 'Student eligibility must be confirmed before registration'; end if;
+ end if;
+ return new;
+end;
+$$;
+revoke all on function public.validate_cohort_enrollment_scope() from public, anon, authenticated;
+drop trigger if exists cohort_enrollments_validate_scope on public.cohort_enrollments;
+create trigger cohort_enrollments_validate_scope before insert or update of institution_id,cohort_id,student_profile_id,group_id,status,eligibility_confirmed_at on public.cohort_enrollments for each row execute function public.validate_cohort_enrollment_scope();
+
+-- A cohort cannot open registration until an authorized confirmation is recorded.
+create or replace function public.validate_graduation_cohort_state()
+returns trigger language plpgsql set search_path = public as $
+begin
+ if new.status='open' and old.status is distinct from 'open' then
+  if new.confirmed_by is null or new.confirmed_at is null then raise exception 'A cohort must be confirmed before registration opens'; end if;
+  if new.opened_at is null then new.opened_at=now(); end if;
+ end if;
+ if new.status='closed' and old.status is distinct from 'closed' then new.closed_at=coalesce(new.closed_at,now()); end if;
+ return new;
+end;
+$$;
+drop trigger if exists graduation_cohorts_validate_state on public.graduation_cohorts;
+create trigger graduation_cohorts_validate_state before update of status,confirmed_by,confirmed_at,opened_at,closed_at on public.graduation_cohorts for each row execute function public.validate_graduation_cohort_state();
 
 -- Updated-at trigger for mutable records.
 create or replace function public.set_updated_at()
@@ -706,6 +759,7 @@ for select to authenticated
 using (
   user_id = auth.uid()
   or public.has_institution_role(institution_id, array['institution_admin', 'department_admin'], department_id)
+  or public.is_supervisor_assigned_to_student_profile(id)
 );
 
 create policy student_profiles_manage on public.student_profiles
@@ -749,6 +803,7 @@ using (
     select 1 from public.student_profiles sp
     where sp.id = student_profile_id and sp.user_id = auth.uid()
   )
+  or public.is_supervisor_assigned_to_enrollment(id)
 );
 
 create policy cohort_enrollments_manage on public.cohort_enrollments
