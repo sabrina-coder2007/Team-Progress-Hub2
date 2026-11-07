@@ -107,7 +107,7 @@ export const departmentId = 'dept-arabic-literature';
 export const currentStudentId = 'student-demo-01';
 
 export const institutionName =
-  'المدرسة العليا للأساتذة ببوزريعة - الشيخ مبارك بن محمد إبراهيمي الميلي الجزائري';
+  'المدرسة العليا للأساتذة بوزريعة';
 
 export const departmentName =
   'قسم اللغة العربية وآدابها';
