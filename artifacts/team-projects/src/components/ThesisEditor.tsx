@@ -155,6 +155,8 @@ export function ThesisEditor({ draft, onDraftChange, title, researchLanguage, st
   const [citationSource, setCitationSource] = useState('');
   const [citationPage, setCitationPage] = useState('');
   const [citationStyle, setCitationStyle] = useState('author-date');
+  const [sentenceToCite, setSentenceToCite] = useState('');
+  const [sentenceReferenceMode, setSentenceReferenceMode] = useState(false);
   const [footnote, setFootnote] = useState('');
   const [modal, setModal] = useState<'citation'|'footnote'|null>(null);
   const [saveState, setSaveState] = useState<'saved'|'saving'>('saved');
@@ -300,6 +302,17 @@ export function ThesisEditor({ draft, onDraftChange, title, researchLanguage, st
     return text.trim() ? text.trim().split(/\s+/).length : 0;
   }, [draft]);
   const filtered = sources.filter(s => [s.author,s.title,s.publisher].join(' ').toLowerCase().includes(query.toLowerCase()));
+  const plainDraft = draft
+    .replace(/<br\s*\/?\s*>/gi, '\n')
+    .replace(/<\/(p|div|h1|h2|h3|h4|li|blockquote)>/gi, '\n')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"');
+  const sentenceRows = plainDraft.split(/(?<=[.!?؟؛])\s+|\n+/).map(value => value.trim()).filter(value => value.length > 8);
 
   function escapeHtml(value: string) {
     return value.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
@@ -332,9 +345,31 @@ export function ThesisEditor({ draft, onDraftChange, title, researchLanguage, st
     const citation = citationStyle === 'footnote'
       ? `( ${source.author}، ${source.title}${citationPage ? '، ص. ' + citationPage : ''} )`
       : `(${source.author}، ${source.year || 'د.ت.'}${citationPage ? '، ص. ' + citationPage : ''})`;
-    insertAtCursor(citation);
+    if (sentenceReferenceMode && sentenceToCite && editor.current) {
+      const walker = document.createTreeWalker(editor.current, NodeFilter.SHOW_TEXT);
+      let textNode: Node | null;
+      let inserted = false;
+      while ((textNode = walker.nextNode())) {
+        const value = textNode.textContent || '';
+        const at = value.indexOf(sentenceToCite);
+        if (at >= 0) {
+          const range = document.createRange();
+          range.setStart(textNode, at + sentenceToCite.length);
+          range.collapse(true);
+          const selection = window.getSelection();
+          selection?.removeAllRanges();
+          selection?.addRange(range);
+          document.execCommand('insertText', false, ' ' + citation);
+          inserted = true;
+          break;
+        }
+      }
+      if (!inserted) insertAtCursor(citation);
+    } else insertAtCursor(citation);
     setModal(null);
     setCitationPage('');
+    setSentenceToCite('');
+    setSentenceReferenceMode(false);
   };
 
   const addFootnote = () => {
@@ -411,6 +446,13 @@ export function ThesisEditor({ draft, onDraftChange, title, researchLanguage, st
             onBlur={()=>{if(editor.current)onDraftChange(cleanHtml(editor.current.innerHTML));}}
           />
           <div className="thesis-paper-tip">{t.editorTip}</div>
+          <section className="thesis-sentence-references" aria-label="إضافة مراجع للجمل">
+            <div className="thesis-sentence-head"><strong>توثيق الجمل</strong><span>أضف مرجعًا عند الحاجة</span></div>
+            {sentenceRows.length===0 ? <p>ستظهر هنا الجمل المكتوبة لتتمكن من إرفاق مرجع بكل جملة.</p> : sentenceRows.map((sentence,index)=><div className="thesis-sentence-row" key={index}>
+              <span dir="auto">{sentence}</span>
+              <button type="button" title="إضافة مرجع لهذه الجملة" aria-label={'إضافة مرجع للجملة '+(index+1)} onClick={()=>{setSentenceToCite(sentence);setSentenceReferenceMode(true);setCitationSource('');setModal('citation');}}>+</button>
+            </div>)}
+          </section>
         </div>
         <div className="thesis-editor-footer"><span>{t.demoStorage}</span><button type="button" className="btn btn-teal" onClick={()=>{if(editor.current)onDraftChange(cleanHtml(editor.current.innerHTML));onSave(editor.current ? cleanHtml(editor.current.innerHTML) : draft);}}><Save size={15}/>{t.saved}</button></div>
       </div>
@@ -472,11 +514,14 @@ export function ThesisEditor({ draft, onDraftChange, title, researchLanguage, st
     {modal && <div className="thesis-modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setModal(null);}}>
       <section className="thesis-modal thesis-citation-modal" dir={rtl?'rtl':'ltr'}>
         <div className="thesis-modal-head"><div><strong>{modal==='citation'?t.insertCitation:t.insertFootnote}</strong><small>{modal==='citation'?t.citationHelp:t.footnoteText}</small></div><button onClick={()=>setModal(null)}><X size={18}/></button></div>
-        {modal==='citation' ? <div className="thesis-source-form">
+        {modal==='citation' ? <>
+          {sentenceReferenceMode && <p className="thesis-citation-target" dir="auto">الجملة المحددة: {sentenceToCite}</p>}
+          <div className="thesis-source-form">
           <label>{t.chooseSource}<select value={citationSource} onChange={e=>setCitationSource(e.target.value)}><option value="">—</option>{sources.map(s=><option key={s.id} value={s.id}>{s.author} — {s.title}</option>)}</select></label>
           <label>{t.page}<input value={citationPage} onChange={e=>setCitationPage(e.target.value)} placeholder="25"/></label>
           <label>{t.citationStyle}<select value={citationStyle} onChange={e=>setCitationStyle(e.target.value)}><option value="author-date">Author — date</option><option value="footnote">Full footnote reference</option></select></label>
-        </div> : <label className="thesis-footnote-label">{t.footnoteText}<textarea value={footnote} onChange={e=>setFootnote(e.target.value)} rows={4}/></label>}
+          </div>
+        </> : <label className="thesis-footnote-label">{t.footnoteText}<textarea value={footnote} onChange={e=>setFootnote(e.target.value)} rows={4}/></label>}
         <div className="thesis-modal-actions"><button className="btn btn-outline" onClick={()=>setModal(null)}>{t.cancel}</button><button className="btn btn-teal" onClick={modal==='citation'?cite:addFootnote}>{t.insert}</button></div>
       </section>
     </div>}
