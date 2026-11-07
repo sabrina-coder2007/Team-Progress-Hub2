@@ -478,7 +478,7 @@ $$;
 
 drop trigger if exists graduation_cohorts_validate_program on public.graduation_cohorts;
 create trigger graduation_cohorts_validate_program
-before insert or update of institution_id, department_id, training_program_id, graduation_year_number
+before insert or update
 on public.graduation_cohorts
 for each row execute function public.validate_graduation_cohort_program();
 
@@ -504,7 +504,7 @@ end;
 $$;
 revoke all on function public.validate_cohort_enrollment_scope() from public, anon, authenticated;
 drop trigger if exists cohort_enrollments_validate_scope on public.cohort_enrollments;
-create trigger cohort_enrollments_validate_scope before insert or update of institution_id,cohort_id,student_profile_id,group_id,status,eligibility_confirmed_at on public.cohort_enrollments for each row execute function public.validate_cohort_enrollment_scope();
+create trigger cohort_enrollments_validate_scope before insert or update on public.cohort_enrollments for each row execute function public.validate_cohort_enrollment_scope();
 
 -- A cohort cannot open registration until an authorized confirmation is recorded.
 create or replace function public.validate_graduation_cohort_state()
@@ -784,7 +784,7 @@ end;
 $$;
 revoke all on function public.validate_thesis_supervisor_assignment() from public, anon, authenticated;
 drop trigger if exists thesis_projects_validate_supervisor on public.thesis_projects;
-create trigger thesis_projects_validate_supervisor before insert or update of enrollment_id, supervisor_profile_id, institution_id on public.thesis_projects for each row execute function public.validate_thesis_supervisor_assignment();
+create trigger thesis_projects_validate_supervisor before insert or update on public.thesis_projects for each row execute function public.validate_thesis_supervisor_assignment();
 
 -- Student and supervisor records remain tenant-scoped.
 create policy student_profiles_read_scope on public.student_profiles
