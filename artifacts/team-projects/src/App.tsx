@@ -1,7 +1,7 @@
 import { type FormEvent, type ReactNode, useEffect, useState } from 'react';
 import { Link, Route, Switch, useLocation } from 'wouter';
 import { ArrowRight, BookOpen, Check, ChevronRight, ClipboardCheck, FilePenLine, FileText, Languages, LockKeyhole, Menu, Save, UserRound, Bell, AlignLeft, Heading1, Heading2, Plus, Trash2, X, Building2, Users, Settings2, CircleCheck, CircleAlert, GraduationCap } from 'lucide-react';
-import { currentStudentId, departmentId, loadStore, type DemoStore, type Profile, type Proposal, type ProposalStatus, type Role, type RolePermission, type UiLanguage } from './demo';
+import { currentStudentId, departmentId, loadStore, STORAGE_KEY, type DemoStore, type Profile, type Proposal, type ProposalStatus, type Role, type RolePermission, type UiLanguage } from './demo';
 import { RegistrationFields } from './components/RegistrationFields';
 import { ThesisEditor } from './components/ThesisEditor';
 
@@ -152,7 +152,7 @@ function App() {
       : store.profiles.find(profile => profile.role === role) || store.profiles[0];
   const workflowComplete = (project: Proposal) => project.steps.length > 0 && project.steps.every(step => step.approved);
 
-  useEffect(() => { localStorage.setItem('leeder-demo-v1', JSON.stringify(store)); }, [store]);
+  useEffect(() => { localStorage.setItem(STORAGE_KEY, JSON.stringify(store)); }, [store]);
   useEffect(() => { localStorage.setItem('leeder-student-preview', activeStudentId); }, [activeStudentId]);
   useEffect(() => {
     setForm(studentProposal);
