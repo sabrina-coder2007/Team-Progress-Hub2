@@ -1,5 +1,6 @@
 export type UiLanguage = 'en' | 'fr' | 'ar';
 export type Role = 'student' | 'supervisor' | 'department' | 'central';
+export type RolePermission = 'proposal' | 'review' | 'editor' | 'department' | 'administration';
 export type ProposalStatus = 'Draft' | 'Pending Review' | 'Modifications Requested' | 'Approved' | 'Rejected';
 export type ReviewStep = { id: string; label: string; role: 'supervisor' | 'department' | 'central'; approved: boolean; comment: string };
 export type Proposal = {
@@ -8,23 +9,28 @@ export type Proposal = {
   status: ProposalStatus; feedback: string; supervisorId: string; departmentId: string;
   steps: ReviewStep[];
 };
+export type WorkflowStep = { id: string; label: string; role: 'supervisor' | 'department' | 'central' };
+export type DepartmentSettings = { years: string[]; specializations: string[]; templates: string[] };
 export type Profile = {
   id: string; name: string; email: string; role: Role; state: string; institutionId: string;
   departmentId: string; specialization: string; academicYear: string; title?: string;
-  institutionName?: string; departmentName?: string;
+  institutionName?: string; facultyName?: string; departmentName?: string;
 };
 export type DemoStore = {
   profiles: Profile[];
   institutions: { id: string; name: string; departments: string[] }[];
   years: string[];
   specializations: string[];
-  workflow: { id: string; label: string; role: 'supervisor' | 'department' | 'central' }[];
+  workflow: WorkflowStep[];
+  departmentWorkflows: Record<string, WorkflowStep[]>;
+  departmentSettings: Record<string, DepartmentSettings>;
   proposals: Proposal[];
   templates: string[];
   activity: string[];
   draft: string;
   drafts: Record<string, string>;
   reviewerNotes: Record<string, string>;
+  rolePermissions: Record<Role, RolePermission[]>;
 };
 
 export const currentStudentId = 'student-amel';
@@ -49,6 +55,14 @@ export const seedStore: DemoStore = {
   years: ['2024–2025', '2025–2026'],
   specializations: ['Educational Sciences', 'Educational Technology', 'Sociology', 'Applied Linguistics'],
   workflow: workflowSeed,
+  departmentWorkflows: { [departmentId]: workflowSeed },
+  departmentSettings: {
+    [departmentId]: {
+      years: ['2024–2025', '2025–2026'],
+      specializations: ['Educational Sciences', 'Educational Technology', 'Sociology'],
+      templates: ['Master research proposal outline', 'Supervisor review notes'],
+    },
+  },
   proposals: [
     {
       id: 'proposal-amel', ownerId: currentStudentId, ownerName: 'Amel Bensalem',
@@ -80,6 +94,12 @@ export const seedStore: DemoStore = {
   draft: '',
   drafts: {},
   reviewerNotes: {},
+  rolePermissions: {
+    student: ['proposal', 'editor'],
+    supervisor: ['review'],
+    department: ['review', 'department'],
+    central: ['review', 'administration'],
+  },
 };
 
 export function loadStore(): DemoStore {
@@ -92,6 +112,9 @@ export function loadStore(): DemoStore {
       profiles: value.profiles || structuredClone(seedStore.profiles),
       proposals: value.proposals || structuredClone(seedStore.proposals),
       workflow: value.workflow || structuredClone(seedStore.workflow),
+      departmentWorkflows: value.departmentWorkflows || { [departmentId]: value.workflow || structuredClone(seedStore.workflow) },
+      departmentSettings: value.departmentSettings || structuredClone(seedStore.departmentSettings),
+      rolePermissions: value.rolePermissions || structuredClone(seedStore.rolePermissions),
       drafts: value.drafts || { [currentStudentId]: value.draft || '' },
     };
   } catch { return structuredClone(seedStore); }

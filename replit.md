@@ -24,15 +24,21 @@ This build uses realistic sample data and browser-local demo persistence only. I
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/team-projects/src/App.tsx` — Leeder pages, role navigation, proposal review, and demo dashboards.
+- `artifacts/team-projects/src/demo.ts` — fictional seed records and browser-local demo data model.
+- `artifacts/team-projects/src/components/RegistrationFields.tsx` — student and supervisor demo registration forms.
+- `artifacts/team-projects/src/index.css` — Leeder theme, RTL rules, and responsive layout.
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- Leeder is a front-end-only prototype. Its role switching, permissions, approvals, and local persistence are demonstrations, not security or institutional services.
+- Review steps and academic settings are configurable per department; central settings provide defaults for new demo departments.
+- Interface language and research-document language are separate. Arabic UI direction follows the interface setting; editor direction follows the research language.
+- Registration passwords are temporary form input and are never stored.
 
 ## Product
 
-Leeder demonstrates a multilingual student research workspace, proposal submission, a simulated committee decision flow, and an editor preview that is available only after demo approval.
+Leeder demonstrates role-specific student, supervisor, department-admin, and central-admin workspaces; proposal submission; configurable review steps; and an editor preview that opens only after the configured approval steps complete.
 
 ## User preferences
 
@@ -40,7 +46,8 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- Use fictional information only. Demo records and any entered proposal data stay in browser local storage, which is not secure.
+- No email verification, university authentication, secure server storage, plagiarism detection, or actual academic approval is implemented.
 
 ## Pointers
 
