@@ -416,7 +416,7 @@ export function loadStore(): DemoStore {
       // Migrate legacy academic details for ENSB demo accounts.
       // ENSB is the higher education institution; the Arabic department
       // is not a faculty and must never be replaced by "Faculty of Social Sciences".
-      if (profile.institutionId === institutionId) {
+      if (seedProfile.institutionId === institutionId) {
         return {
           ...profile,
           institutionName,
