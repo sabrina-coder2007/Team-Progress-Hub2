@@ -1,18 +1,16 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "services": {
-    "api-server": {
-      "root": "artifacts/api-server",
-      "framework": "express"
-    },
-    "mockup-sandbox": {
-      "root": "artifacts/mockup-sandbox",
-      "framework": "vite"
-    },
-    "team-projects": {
-      "root": "artifacts/team-projects",
-      "framework": "vite"
+  "version": 2,
+  "builds": [
+    {
+      "src": "artifacts/api-server/index.ts",
+      "use": "@vercel/node"
     }
-  },
-  "rewrites": []
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "artifacts/api-server/index.ts"
+    }
+  ]
 }
