@@ -416,6 +416,7 @@ as $$
      and im.user_id = sp.user_id
      and im.is_active = true
      and im.role = 'supervisor'
+     and im.department_id = sp.department_id
     where sp.id = target_supervisor_profile_id
       and sp.user_id = auth.uid()
       and sp.is_active = true
@@ -424,11 +425,11 @@ $$;
 
 -- Supervisor access is limited to records tied to projects assigned to that supervisor.
 create or replace function public.is_supervisor_assigned_to_enrollment(target_enrollment_id uuid)
-returns boolean language sql stable security definer set search_path = public as $
- select exists (select 1 from public.thesis_projects tp join public.supervisor_profiles sp on sp.id=tp.supervisor_profile_id join public.institution_memberships im on im.institution_id=sp.institution_id and im.user_id=sp.user_id and im.role='supervisor' and im.is_active=true where tp.enrollment_id=target_enrollment_id and sp.user_id=auth.uid() and sp.is_active=true);
+returns boolean language sql stable security definer set search_path = public as $$
+ select exists (select 1 from public.thesis_projects tp join public.supervisor_profiles sp on sp.id=tp.supervisor_profile_id join public.institution_memberships im on im.institution_id=sp.institution_id and im.user_id=sp.user_id and im.role='supervisor' and im.department_id=sp.department_id and im.is_active=true where tp.enrollment_id=target_enrollment_id and sp.user_id=auth.uid() and sp.is_active=true);
 $$;
 create or replace function public.is_supervisor_assigned_to_student_profile(target_student_profile_id uuid)
-returns boolean language sql stable security definer set search_path = public as $
+returns boolean language sql stable security definer set search_path = public as $$
  select exists (select 1 from public.cohort_enrollments ce join public.thesis_projects tp on tp.enrollment_id=ce.id join public.supervisor_profiles sp on sp.id=tp.supervisor_profile_id join public.institution_memberships im on im.institution_id=sp.institution_id and im.user_id=sp.user_id and im.role='supervisor' and im.is_active=true where ce.student_profile_id=target_student_profile_id and sp.user_id=auth.uid() and sp.is_active=true);
 $$;
 revoke all on function public.is_supervisor_assigned_to_enrollment(uuid) from public;
@@ -483,7 +484,7 @@ for each row execute function public.validate_graduation_cohort_program();
 
 -- Validate that student, cohort and group belong to the same academic scope.
 create or replace function public.validate_cohort_enrollment_scope()
-returns trigger language plpgsql security definer set search_path = public as $
+returns trigger language plpgsql security definer set search_path = public as $$
 declare cd uuid; cp uuid; cs uuid; cstate public.cohort_status; sd uuid; spid uuid; ss uuid; gcid uuid;
 begin
  select department_id,training_program_id,specialization_id,status into cd,cp,cs,cstate from public.graduation_cohorts where id=new.cohort_id and institution_id=new.institution_id;
@@ -786,7 +787,7 @@ create unique index if not exists institution_memberships_user_role_scope_unique
 on public.institution_memberships (institution_id, user_id, role, coalesce(department_id, '00000000-0000-0000-0000-000000000000'::uuid));
 
 create or replace function public.claim_my_student_record(target_student_number text)
-returns uuid language plpgsql security definer set search_path = public as $
+returns uuid language plpgsql security definer set search_path = public as $$
 declare verified_email text; matched_student public.student_profiles%rowtype;
 begin
  if auth.uid() is null then raise exception 'Authentication is required'; end if;
