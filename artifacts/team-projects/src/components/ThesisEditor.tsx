@@ -28,6 +28,17 @@ type SuggestedSource = {
   provider: string;
 };
 
+type ReviewIssue = {
+  id: string;
+  category: 'إملاء وترقيم' | 'تركيب' | 'تنسيق';
+  message: string;
+  excerpt: string;
+  replacement: string;
+  reason: string;
+  reference: string;
+  confidence: 'مرتفعة' | 'متوسطة';
+};
+
 type Props = {
   draft: string;
   onDraftChange: (value: string) => void;
@@ -157,6 +168,8 @@ export function ThesisEditor({ draft, onDraftChange, title, researchLanguage, st
   const [citationStyle, setCitationStyle] = useState('author-date');
   const [sentenceToCite, setSentenceToCite] = useState('');
   const [sentenceReferenceMode, setSentenceReferenceMode] = useState(false);
+  const [reviewIssues, setReviewIssues] = useState<ReviewIssue[]>([]);
+  const [reviewRan, setReviewRan] = useState(false);
   const [footnote, setFootnote] = useState('');
   const [modal, setModal] = useState<'citation'|'footnote'|null>(null);
   const [saveState, setSaveState] = useState<'saved'|'saving'>('saved');
@@ -314,6 +327,49 @@ export function ThesisEditor({ draft, onDraftChange, title, researchLanguage, st
     .replace(/&quot;/g, '"');
   const sentenceRows = plainDraft.split(/(?<=[.!?؟؛])\s+|\n+/).map(value => value.trim()).filter(value => value.length > 8);
 
+  const runProofread = () => {
+    const issues: ReviewIssue[] = [];
+    const addIssue = (category: ReviewIssue['category'], message: string, excerpt: string, replacement: string, reason: string, reference: string, confidence: ReviewIssue['confidence'] = 'مرتفعة') => {
+      if (!excerpt || excerpt === replacement) return;
+      issues.push({ id: category + '-' + issues.length + '-' + excerpt, category, message, excerpt, replacement, reason, reference, confidence });
+    };
+    let match: RegExpExecArray | null;
+    const repeatedSpaces = / {2,}/g;
+    while ((match = repeatedSpaces.exec(plainDraft))) addIssue('تنسيق', 'مسافات متكررة', match[0], ' ', 'تكرار المسافات داخل النص لا يضيف معنى وقد يخلّ بتنسيق الفقرة.', 'قاعدة تحريرية عامة للمسافات.');
+    const spacesBeforePunctuation = /\s+([،؛.!؟:])/g;
+    while ((match = spacesBeforePunctuation.exec(plainDraft))) addIssue('إملاء وترقيم', 'مسافة قبل علامة الترقيم', match[0], match[1], 'توضع علامة الترقيم ملاصقة للكلمة السابقة، لا تسبقها مسافة.', 'قواعد الترقيم العربية العامة.');
+    const duplicatePunctuation = /([،؛.!؟:])\1+/g;
+    while ((match = duplicatePunctuation.exec(plainDraft))) addIssue('إملاء وترقيم', 'تكرار علامة الترقيم', match[0], match[1], 'تكرار علامة الترقيم نفسها متتابعة غالبًا غير لازم في الكتابة الأكاديمية.', 'قواعد الترقيم والكتابة الأكاديمية.');
+    const missingSpace = /([،؛.!؟:])(?=[\p{L}\p{N}])/gu;
+    while ((match = missingSpace.exec(plainDraft))) addIssue('تنسيق', 'احتمال غياب مسافة بعد علامة الترقيم', plainDraft.slice(match.index, match.index + 2), match[1] + ' ', 'تُفصل العبارة التالية بمسافة بعد علامة الترقيم.', 'قواعد تحرير النصوص.');
+    const repeatedWord = /\b([\p{L}\p{M}]{2,})\s+\1\b/giu;
+    while ((match = repeatedWord.exec(plainDraft))) addIssue('تركيب', 'احتمال تكرار كلمة متتاليتين', match[0], match[1], 'قد يكون التكرار غير مقصود؛ راجع السياق قبل اعتماد التصحيح.', 'مراجعة تحريرية للسياق.', 'متوسطة');
+    setReviewIssues(issues);
+    setReviewRan(true);
+  };
+
+  const applyReviewIssue = (issue: ReviewIssue) => {
+    if (!editor.current) return;
+    const walker = document.createTreeWalker(editor.current, NodeFilter.SHOW_TEXT);
+    let node: Node | null;
+    let applied = false;
+    while ((node = walker.nextNode())) {
+      const value = node.textContent || '';
+      const index = value.indexOf(issue.excerpt);
+      if (index < 0) continue;
+      const before = node.splitText(index);
+      before.splitText(issue.excerpt.length);
+      const replacementNode = document.createTextNode(issue.replacement);
+      before.parentNode?.replaceChild(replacementNode, before);
+      applied = true;
+      break;
+    }
+    if (applied) {
+      onDraftChange(cleanHtml(editor.current.innerHTML));
+      setReviewIssues(current => current.filter(item => item.id !== issue.id));
+    }
+  };
+
   function escapeHtml(value: string) {
     return value.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   }
@@ -452,6 +508,23 @@ export function ThesisEditor({ draft, onDraftChange, title, researchLanguage, st
               <span dir="auto">{sentence}</span>
               <button type="button" title="إضافة مرجع لهذه الجملة" aria-label={'إضافة مرجع للجملة '+(index+1)} onClick={()=>{setSentenceToCite(sentence);setSentenceReferenceMode(true);setCitationSource('');setModal('citation');}}>+</button>
             </div>)}
+          </section>
+          <section className="thesis-proofread-panel">
+            <div className="thesis-proofread-head">
+              <div><strong>المراجعة الأولية للمسودة</strong><small>افحص المسافات والترقيم والتكرارات التحريرية</small></div>
+              <button type="button" onClick={runProofread}>فحص المسودة</button>
+            </div>
+            {!reviewRan ? <p className="thesis-proofread-empty">اضغط «فحص المسودة» لعرض الملاحظات الأولية. لا يُعد هذا فحصًا نحويًا أو دلاليًا شاملًا.</p> :
+              reviewIssues.length===0 ? <p className="thesis-proofread-empty">لم تُكتشف مخالفات في قواعد التنسيق الأولية التي يفحصها هذا الإصدار.</p> :
+              <div className="thesis-proofread-list">{reviewIssues.map(issue=><article className="thesis-proofread-issue" key={issue.id}>
+                <div className="thesis-proofread-issue-top"><span>{issue.category}</span><small>ثقة {issue.confidence}</small></div>
+                <strong>{issue.message}</strong>
+                <p dir="auto">الموضع: «{issue.excerpt}»</p>
+                <p>{issue.reason}</p>
+                <small>مرجع القاعدة: {issue.reference}</small>
+                <div><button type="button" onClick={()=>applyReviewIssue(issue)}>قبول التصحيح: «{issue.replacement}»</button><button type="button" onClick={()=>setReviewIssues(current=>current.filter(item=>item.id!==issue.id))}>تجاهل</button></div>
+              </article>)}</div>}
+            <p className="thesis-proofread-note">المراجعة النحوية والتركيبية والدلالية المتقدمة، مع إحالة كل حكم إلى مرجع لغوي محدد، تحتاج إلى محرك متخصص وقاعدة مراجع موثقة؛ لن نصنّف اقتراحًا آليًا على أنه خطأ مؤكد قبل توفير ذلك.</p>
           </section>
         </div>
         <div className="thesis-editor-footer"><span>{t.demoStorage}</span><button type="button" className="btn btn-teal" onClick={()=>{if(editor.current)onDraftChange(cleanHtml(editor.current.innerHTML));onSave(editor.current ? cleanHtml(editor.current.innerHTML) : draft);}}><Save size={15}/>{t.saved}</button></div>
