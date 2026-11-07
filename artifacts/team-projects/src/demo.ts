@@ -405,13 +405,28 @@ export function loadStore(): DemoStore {
         (profile) => profile.id === seedProfile.id
       );
 
-      return savedProfile
+      const profile = savedProfile
         ? {
             ...savedProfile,
             name: seedProfile.name,
             email: seedProfile.email,
           }
         : { ...seedProfile };
+
+      // Migrate legacy academic details for ENSB demo accounts.
+      // ENSB is the higher education institution; the Arabic department
+      // is not a faculty and must never be replaced by "Faculty of Social Sciences".
+      if (profile.institutionId === institutionId) {
+        return {
+          ...profile,
+          institutionName,
+          facultyName: '',
+          departmentId,
+          departmentName,
+        };
+      }
+
+      return profile;
     });
 
     // Keep proposal data while ensuring demo owner names stay fictional.
