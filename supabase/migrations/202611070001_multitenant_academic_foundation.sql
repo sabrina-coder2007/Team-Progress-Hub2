@@ -98,10 +98,25 @@ create table if not exists public.institution_memberships (
   department_id uuid,
   is_active boolean not null default true,
   created_at timestamptz not null default now(),
+  unique (id, institution_id),
   check (
     (role = 'institution_admin' and department_id is null)
     or (role <> 'institution_admin' and department_id is not null)
   )
+);
+
+-- Fine-grained grants let each department assistant receive only selected duties.
+create table if not exists public.membership_permissions (
+  id uuid primary key default gen_random_uuid(),
+  membership_id uuid not null,
+  institution_id uuid not null references public.institutions(id) on delete restrict,
+  permission_key text not null,
+  granted_by uuid not null references auth.users(id),
+  created_at timestamptz not null default now(),
+  unique (membership_id, permission_key),
+  foreign key (membership_id, institution_id)
+    references public.institution_memberships(id, institution_id)
+    on delete cascade
 );
 
 create index if not exists institution_memberships_user_idx
@@ -272,7 +287,7 @@ create table if not exists public.cohort_enrollments (
   institution_id uuid not null references public.institutions(id) on delete restrict,
   cohort_id uuid not null references public.graduation_cohorts(id) on delete cascade,
   student_profile_id uuid not null references public.student_profiles(id) on delete restrict,
-  group_id uuid references public.academic_groups(id) on delete set null,
+  group_id uuid references public.academic_groups(id) on delete restrict,
   status public.enrollment_status not null default 'imported',
   eligibility_confirmed_at timestamptz,
   created_at timestamptz not null default now(),
@@ -293,7 +308,7 @@ create table if not exists public.thesis_projects (
   id uuid primary key default gen_random_uuid(),
   institution_id uuid not null references public.institutions(id) on delete restrict,
   enrollment_id uuid not null unique references public.cohort_enrollments(id) on delete restrict,
-  supervisor_profile_id uuid references public.supervisor_profiles(id) on delete set null,
+  supervisor_profile_id uuid references public.supervisor_profiles(id) on delete restrict,
   title text,
   research_field text,
   status public.thesis_status not null default 'proposal',
@@ -474,6 +489,7 @@ alter table public.platform_admins enable row level security;
 alter table public.institution_requests enable row level security;
 alter table public.institutions enable row level security;
 alter table public.institution_memberships enable row level security;
+alter table public.membership_permissions enable row level security;
 alter table public.departments enable row level security;
 alter table public.training_programs enable row level security;
 alter table public.specializations enable row level security;
@@ -566,6 +582,51 @@ with check (
 );
 
 -- Academic structure is visible only inside its institution.
+create policy membership_permissions_read_scope on public.membership_permissions
+for select to authenticated
+using (
+  exists (
+    select 1
+    from public.institution_memberships im
+    where im.id = membership_id
+      and (
+        im.user_id = auth.uid()
+        or public.has_institution_role(
+          im.institution_id,
+          array['institution_admin', 'department_admin'],
+          im.department_id
+        )
+      )
+  )
+);
+
+create policy membership_permissions_manage on public.membership_permissions
+for all to authenticated
+using (
+  exists (
+    select 1
+    from public.institution_memberships im
+    where im.id = membership_id
+      and public.has_institution_role(
+        im.institution_id,
+        array['institution_admin', 'department_admin'],
+        im.department_id
+      )
+  )
+)
+with check (
+  exists (
+    select 1
+    from public.institution_memberships im
+    where im.id = membership_id
+      and public.has_institution_role(
+        im.institution_id,
+        array['institution_admin', 'department_admin'],
+        im.department_id
+      )
+  )
+);
+
 create policy departments_read_scope on public.departments
 for select to authenticated
 using (public.is_institution_member(institution_id));
