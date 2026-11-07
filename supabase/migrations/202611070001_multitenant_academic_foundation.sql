@@ -769,6 +769,23 @@ with check (
   )
 );
 
+-- A thesis may be assigned only to an active supervisor in the same department.
+create or replace function public.validate_thesis_supervisor_assignment()
+returns trigger language plpgsql security definer set search_path = public as $$
+declare project_department_id uuid;
+begin
+ if new.supervisor_profile_id is null then return new; end if;
+ select gc.department_id into project_department_id from public.cohort_enrollments ce join public.graduation_cohorts gc on gc.id=ce.cohort_id where ce.id=new.enrollment_id and gc.institution_id=new.institution_id;
+ if not exists (select 1 from public.supervisor_profiles sp join public.institution_memberships im on im.institution_id=sp.institution_id and im.user_id=sp.user_id and im.department_id=sp.department_id and im.role='supervisor' and im.is_active=true where sp.id=new.supervisor_profile_id and sp.institution_id=new.institution_id and sp.department_id=project_department_id and sp.is_active=true) then
+  raise exception 'Assigned supervisor must be active in the project department';
+ end if;
+ return new;
+end;
+$$;
+revoke all on function public.validate_thesis_supervisor_assignment() from public, anon, authenticated;
+drop trigger if exists thesis_projects_validate_supervisor on public.thesis_projects;
+create trigger thesis_projects_validate_supervisor before insert or update of enrollment_id, supervisor_profile_id, institution_id on public.thesis_projects for each row execute function public.validate_thesis_supervisor_assignment();
+
 -- Student and supervisor records remain tenant-scoped.
 create policy student_profiles_read_scope on public.student_profiles
 for select to authenticated
@@ -788,18 +805,25 @@ on public.institution_memberships (institution_id, user_id, role, coalesce(depar
 
 create or replace function public.claim_my_student_record(target_student_number text)
 returns uuid language plpgsql security definer set search_path = public as $$
-declare verified_email text; matched_student public.student_profiles%rowtype;
+declare verified_email text; matched_student public.student_profiles%rowtype; matching_count integer;
 begin
  if auth.uid() is null then raise exception 'Authentication is required'; end if;
  select lower(u.email) into verified_email from auth.users u where u.id=auth.uid() and u.email_confirmed_at is not null;
  if verified_email is null then raise exception 'A verified email address is required'; end if;
+ select count(*) into matching_count from public.student_profiles sp
+ join public.institutions i on i.id=sp.institution_id and i.status='active'
+ where sp.student_number=trim(target_student_number) and lower(sp.institutional_email)=verified_email and sp.user_id is null;
+ if matching_count <> 1 then raise exception 'No unique unclaimed student record matches this number and verified institutional email'; end if;
  select sp.* into matched_student from public.student_profiles sp
- where sp.student_number=trim(target_student_number) and lower(sp.institutional_email)=verified_email and sp.user_id is null for update;
- if not found then raise exception 'No unclaimed student record matches this number and verified institutional email'; end if;
+ join public.institutions i on i.id=sp.institution_id and i.status='active'
+ where sp.student_number=trim(target_student_number) and lower(sp.institutional_email)=verified_email and sp.user_id is null
+ for update of sp;
  update public.student_profiles set user_id=auth.uid() where id=matched_student.id and user_id is null;
  if not found then raise exception 'Student record has already been claimed'; end if;
  insert into public.institution_memberships(institution_id,user_id,role,department_id)
  values(matched_student.institution_id,auth.uid(),'student',matched_student.department_id) on conflict do nothing;
+ insert into public.audit_logs(institution_id,department_id,actor_id,action,entity_type,entity_id,details)
+ values(matched_student.institution_id,matched_student.department_id,auth.uid(),'student_account_claimed','student_profile',matched_student.id::text,'{}'::jsonb);
  return matched_student.id;
 end;
 $$;
