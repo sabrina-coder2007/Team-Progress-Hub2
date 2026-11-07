@@ -456,3 +456,26 @@ td small { margin-top:4px;color:#8a98a2;font-size:10px; }
 .thesis-sentence-row>button{width:25px;height:25px;border:1px solid #d8e9e1;border-radius:50%;background:#edf6f1;color:#2d8270;font-size:17px;line-height:1;cursor:pointer}
 .thesis-sentence-row>button:hover{background:#dcefe6;border-color:#9fc9b9}
 .thesis-citation-target{padding:10px 12px;margin:0 0 13px;border-inline-start:3px solid #5b9d8c;border-radius:5px;background:#f2f8f5;color:#536c70;font-size:11px;line-height:1.7}
+
+
+/* Draft proofreading panel */
+.thesis-proofread-panel{width:min(100%,800px);margin:13px auto 0;padding:14px;border:1px solid #e4e9e8;border-radius:11px;background:#fff}
+.thesis-proofread-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.thesis-proofread-head>div{display:grid;gap:4px}
+.thesis-proofread-head strong{font-size:12px;color:#304f63}
+.thesis-proofread-head small{font-size:9px;color:#8a999d}
+.thesis-proofread-head>button{padding:8px 11px;border:1px solid #d4e5dd;border-radius:8px;background:#edf6f1;color:#2d7c6d;font-size:10px;font-weight:700;white-space:nowrap}
+.thesis-proofread-empty{margin:12px 0 0;color:#8c9a9e;font-size:10px;line-height:1.7}
+.thesis-proofread-list{display:grid;gap:9px;margin-top:13px}
+.thesis-proofread-issue{padding:11px;border:1px solid #e9edeb;border-radius:9px;background:#fcfdfc}
+.thesis-proofread-issue-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px}
+.thesis-proofread-issue-top span{color:#3d8477;font-size:9px;font-weight:700}
+.thesis-proofread-issue-top small{color:#9a8a65;font-size:9px}
+.thesis-proofread-issue>strong{display:block;color:#405a68;font-size:11px}
+.thesis-proofread-issue>p{margin:6px 0;color:#71838a;font-size:10px;line-height:1.6;overflow-wrap:anywhere}
+.thesis-proofread-issue>small{display:block;color:#9aa4a5;font-size:9px;line-height:1.5}
+.thesis-proofread-issue>div:last-child{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}
+.thesis-proofread-issue>div:last-child button{padding:7px 9px;border:1px solid #dce8e2;border-radius:7px;background:#eff7f2;color:#327c6e;font-size:9px}
+.thesis-proofread-issue>div:last-child button+button{background:#fff;color:#77868b;border-color:#e5e9e8}
+.thesis-proofread-note{margin:12px 0 0;padding-top:10px;border-top:1px solid #edf0ef;color:#929d9f;font-size:9px;line-height:1.7}
+@media(max-width:560px){.thesis-proofread-head{align-items:flex-start;flex-direction:column}.thesis-proofread-head>button{width:100%}}
