@@ -420,3 +420,26 @@ td small { margin-top:4px;color:#8a98a2;font-size:10px; }
 .thesis-status-row{max-width:350px;margin-top:16px}
 @media(max-width:900px){.thesis-workspace{grid-template-columns:minmax(0,1fr)}.thesis-sidebar{order:2}.thesis-side-content{padding:14px}.thesis-source-list{max-height:300px}.thesis-paper{min-height:560px}}
 @media(max-width:560px){.thesis-docbar{align-items:flex-start;padding:13px}.thesis-docstatus{font-size:0}.thesis-docstatus .save-dot{width:8px;height:8px}.thesis-toolbar{gap:5px;padding:8px}.thesis-tool-divider{height:18px}.thesis-toolgroup button{min-width:29px;height:30px;padding:0 5px}.thesis-direction{max-width:130px;font-size:9px;padding:6px}.thesis-paper-wrap{padding:10px 8px 14px}.thesis-paper{min-height:520px;padding:25px 19px;font-size:14px}.thesis-editor-footer{align-items:flex-start;font-size:9px}.thesis-source-form{grid-template-columns:1fr}.thesis-source-form label{grid-column:1/-1!important}.thesis-modal{padding:16px}}
+
+
+/* Academic source discovery */
+.thesis-discovery{margin:13px 0;padding:12px;border:1px solid #dce9e5;border-radius:11px;background:#f7faf8;display:grid;gap:9px}
+.thesis-discovery-title{display:flex;align-items:center;justify-content:space-between;gap:7px}
+.thesis-discovery-title strong{font-size:11px;color:#315568}
+.thesis-discovery-title span{font-size:9px;color:#78918a}
+.thesis-discovery>input{width:100%;min-width:0;padding:9px 10px;border:1px solid #dce6e3;border-radius:8px;background:#fff;color:#385365;font-size:10px;outline:0}
+.thesis-discovery>input:focus{border-color:#77a99b}
+.thesis-discovery-actions{display:flex;gap:7px;flex-wrap:wrap}
+.thesis-discovery-actions button,.thesis-suggestion-card button{display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:7px 9px;border:1px solid #d6e6df;border-radius:7px;background:#eaf4ef;color:#287768;font-size:9px;font-weight:700}
+.thesis-discovery-actions button:disabled{opacity:.5;cursor:not-allowed}
+.thesis-discovery-actions button+button{background:#fff;color:#536e7d;border-color:#e1e8e7}
+.thesis-source-disclaimer,.thesis-discovery-message{margin:0;color:#89999b;font-size:9px;line-height:1.6}
+.thesis-discovery-message{color:#a46b42}
+.thesis-suggestion-list{display:grid;gap:8px;max-height:350px;overflow:auto}
+.thesis-suggestion-card{display:grid;gap:5px;padding:10px;border:1px solid #e3ebe8;border-radius:8px;background:#fff}
+.thesis-suggestion-card>span{color:#438778;font-size:9px}
+.thesis-suggestion-card>strong{color:#344f61;font-size:10px;line-height:1.5}
+.thesis-suggestion-card>small{color:#829198;font-size:9px;line-height:1.5}
+.thesis-suggestion-card>div{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.thesis-suggestion-card a{color:#547f91;font-size:9px;text-decoration:none}
+.thesis-suggestion-card a:hover{text-decoration:underline}
