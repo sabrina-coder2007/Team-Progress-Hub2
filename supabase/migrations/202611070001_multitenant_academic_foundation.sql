@@ -507,18 +507,31 @@ create trigger cohort_enrollments_validate_scope before insert or update of inst
 
 -- A cohort cannot open registration until an authorized confirmation is recorded.
 create or replace function public.validate_graduation_cohort_state()
-returns trigger language plpgsql set search_path = public as $
+returns trigger
+language plpgsql
+set search_path = public
+as $$
 begin
- if new.status='open' and old.status is distinct from 'open' then
-  if new.confirmed_by is null or new.confirmed_at is null then raise exception 'A cohort must be confirmed before registration opens'; end if;
-  if new.opened_at is null then new.opened_at=now(); end if;
- end if;
- if new.status='closed' and old.status is distinct from 'closed' then new.closed_at=coalesce(new.closed_at,now()); end if;
- return new;
+  if tg_op = 'INSERT' and new.status <> 'draft' then
+    raise exception 'A new cohort must start in draft status';
+  end if;
+  if new.status = 'open' and (tg_op = 'INSERT' or old.status is distinct from 'open') then
+    if new.confirmed_by is null or new.confirmed_at is null then
+      raise exception 'A cohort must be confirmed before registration opens';
+    end if;
+    if new.opened_at is null then new.opened_at = now(); end if;
+  end if;
+  if new.status = 'closed' and (tg_op = 'INSERT' or old.status is distinct from 'closed') then
+    new.closed_at = coalesce(new.closed_at, now());
+  end if;
+  return new;
 end;
 $$;
+
 drop trigger if exists graduation_cohorts_validate_state on public.graduation_cohorts;
-create trigger graduation_cohorts_validate_state before update of status,confirmed_by,confirmed_at,opened_at,closed_at on public.graduation_cohorts for each row execute function public.validate_graduation_cohort_state();
+create trigger graduation_cohorts_validate_state
+before insert or update on public.graduation_cohorts
+for each row execute function public.validate_graduation_cohort_state();
 
 -- Updated-at trigger for mutable records.
 create or replace function public.set_updated_at()
@@ -611,6 +624,7 @@ create policy memberships_read_scope on public.institution_memberships
 for select to authenticated
 using (
   user_id = auth.uid()
+  or public.is_platform_admin()
   or public.has_institution_role(institution_id, array['institution_admin'])
 );
 
@@ -645,7 +659,8 @@ with check (
 create policy membership_permissions_read_scope on public.membership_permissions
 for select to authenticated
 using (
-  exists (
+  public.is_platform_admin()
+  or exists (
     select 1
     from public.institution_memberships im
     where im.id = membership_id
@@ -761,6 +776,34 @@ using (
   or public.has_institution_role(institution_id, array['institution_admin', 'department_admin'], department_id)
   or public.is_supervisor_assigned_to_student_profile(id)
 );
+
+-- Student account linking is allowed only through a verified institutional email and student number.
+revoke insert, update on public.student_profiles from public, anon, authenticated;
+grant insert (institution_id, student_number, full_name, institutional_email, department_id, training_program_id, specialization_id) on public.student_profiles to authenticated;
+grant update (student_number, full_name, institutional_email, department_id, training_program_id, specialization_id) on public.student_profiles to authenticated;
+
+create unique index if not exists institution_memberships_user_role_scope_unique
+on public.institution_memberships (institution_id, user_id, role, coalesce(department_id, '00000000-0000-0000-0000-000000000000'::uuid));
+
+create or replace function public.claim_my_student_record(target_student_number text)
+returns uuid language plpgsql security definer set search_path = public as $
+declare verified_email text; matched_student public.student_profiles%rowtype;
+begin
+ if auth.uid() is null then raise exception 'Authentication is required'; end if;
+ select lower(u.email) into verified_email from auth.users u where u.id=auth.uid() and u.email_confirmed_at is not null;
+ if verified_email is null then raise exception 'A verified email address is required'; end if;
+ select sp.* into matched_student from public.student_profiles sp
+ where sp.student_number=trim(target_student_number) and lower(sp.institutional_email)=verified_email and sp.user_id is null for update;
+ if not found then raise exception 'No unclaimed student record matches this number and verified institutional email'; end if;
+ update public.student_profiles set user_id=auth.uid() where id=matched_student.id and user_id is null;
+ if not found then raise exception 'Student record has already been claimed'; end if;
+ insert into public.institution_memberships(institution_id,user_id,role,department_id)
+ values(matched_student.institution_id,auth.uid(),'student',matched_student.department_id) on conflict do nothing;
+ return matched_student.id;
+end;
+$$;
+revoke all on function public.claim_my_student_record(text) from public, anon;
+grant execute on function public.claim_my_student_record(text) to authenticated;
 
 create policy student_profiles_manage on public.student_profiles
 for all to authenticated
