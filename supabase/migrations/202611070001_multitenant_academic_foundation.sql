@@ -513,18 +513,24 @@ language plpgsql
 set search_path = public
 as $$
 begin
-  if tg_op = 'INSERT' and new.status <> 'draft' then
-    raise exception 'A new cohort must start in draft status';
+  if tg_op = 'INSERT' then
+    if new.status <> 'draft' then
+      raise exception 'A new cohort must start in draft status';
+    end if;
+    return new;
   end if;
-  if new.status = 'open' and (tg_op = 'INSERT' or old.status is distinct from 'open') then
+
+  if new.status = 'open' and old.status is distinct from 'open' then
     if new.confirmed_by is null or new.confirmed_at is null then
       raise exception 'A cohort must be confirmed before registration opens';
     end if;
     if new.opened_at is null then new.opened_at = now(); end if;
   end if;
-  if new.status = 'closed' and (tg_op = 'INSERT' or old.status is distinct from 'closed') then
+
+  if new.status = 'closed' and old.status is distinct from 'closed' then
     new.closed_at = coalesce(new.closed_at, now());
   end if;
+
   return new;
 end;
 $$;
