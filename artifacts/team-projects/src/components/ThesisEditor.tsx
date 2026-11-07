@@ -99,6 +99,8 @@ const labels = {
   },
 };
 
+const blockTags = new Set(['P','DIV','H1','H2','H3','H4','BLOCKQUOTE','LI','TH','TD']);
+
 const cleanHtml = (html: string) => {
   const parsed = new DOMParser().parseFromString(html, 'text/html');
   const allowed = new Set(['P','DIV','H1','H2','H3','H4','UL','OL','LI','BLOCKQUOTE','STRONG','B','EM','I','U','BR','A','SPAN','SUB','SUP','TABLE','THEAD','TBODY','TR','TH','TD']);
@@ -111,8 +113,12 @@ const cleanHtml = (html: string) => {
           return;
         }
         [...el.attributes].forEach(attr => {
-          if (attr.name !== 'href' || el.tagName !== 'A' || !/^https?:\/\//i.test(attr.value)) el.removeAttribute(attr.name);
+          if (attr.name === 'href' && el.tagName === 'A' && /^https?:\/\//i.test(attr.value)) return;
+          if (attr.name === 'dir' && ['auto','rtl','ltr'].includes(attr.value.toLowerCase())) return;
+          if (attr.name === 'lang' && /^[a-z]{2,3}(?:-[a-z0-9]{2,8})*$/i.test(attr.value)) return;
+          el.removeAttribute(attr.name);
         });
+        if (blockTags.has(el.tagName) && !el.hasAttribute('dir')) el.setAttribute('dir', 'auto');
         walk(el);
       } else if (child.nodeType !== Node.TEXT_NODE) child.remove();
     });
@@ -138,6 +144,12 @@ export function ThesisEditor({ draft, onDraftChange, title, researchLanguage, st
   const [saveState, setSaveState] = useState<'saved'|'saving'>('saved');
   const [direction, setDirection] = useState(rtl ? 'rtl' : 'ltr');
 
+  useEffect(() => {
+    const nextDirection = rtl ? 'rtl' : 'ltr';
+    setDirection(nextDirection);
+    if (editor.current) editor.current.dir = nextDirection;
+  }, [rtl, studentId]);
+
   const storageKey = 'leeder-sources-v1-' + studentId;
   useEffect(() => {
     try { setSources(JSON.parse(localStorage.getItem(storageKey) || '[]')); } catch { setSources([]); }
@@ -156,6 +168,9 @@ export function ThesisEditor({ draft, onDraftChange, title, researchLanguage, st
     const node = editor.current;
     if (!node) return;
     const save = () => {
+      node.querySelectorAll<HTMLElement>('p, div, h1, h2, h3, h4, blockquote, li, th, td').forEach(element => {
+        if (!element.hasAttribute('dir')) element.setAttribute('dir', 'auto');
+      });
       const html = cleanHtml(node.innerHTML);
       onDraftChange(html);
       setSaveState('saving');
@@ -239,7 +254,7 @@ export function ThesisEditor({ draft, onDraftChange, title, researchLanguage, st
           <div className="thesis-docidentity"><span className="thesis-docicon"><BookOpen size={17}/></span><div><strong>{t.document}</strong><small dir="auto">{title || t.emptyTitle}</small></div></div>
           <div className="thesis-docstatus"><span className={saveState==='saved'?'save-dot':'save-dot saving-dot'}/>{saveState==='saved'?t.saved:t.saving}</div>
         </div>
-        <div className="thesis-toolbar" aria-label={t.formatting}>
+        <div className="thesis-toolbar" aria-label={t.formatting} onMouseDown={event => { if ((event.target as HTMLElement).closest("button")) event.preventDefault(); }}>
           <div className="thesis-toolgroup">
             <button type="button" title={t.paragraph} onClick={()=>command('formatBlock','<p>')}>¶</button>
             <button type="button" title={t.chapter} onClick={()=>command('formatBlock','<h1>')}><Heading1 size={17}/></button>
@@ -273,6 +288,7 @@ export function ThesisEditor({ draft, onDraftChange, title, researchLanguage, st
             ref={editor}
             className="thesis-paper"
             contentEditable
+            spellCheck={false}
             suppressContentEditableWarning
             role="textbox"
             aria-multiline="true"
