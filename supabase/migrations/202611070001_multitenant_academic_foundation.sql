@@ -97,7 +97,11 @@ create table if not exists public.institution_memberships (
   role public.membership_role not null,
   department_id uuid,
   is_active boolean not null default true,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  check (
+    (role = 'institution_admin' and department_id is null)
+    or (role <> 'institution_admin' and department_id is not null)
+  )
 );
 
 create index if not exists institution_memberships_user_idx
@@ -114,8 +118,15 @@ create table if not exists public.departments (
   code text,
   is_active boolean not null default true,
   created_at timestamptz not null default now(),
-  unique (institution_id, name)
+  unique (institution_id, name),
+  unique (id, institution_id)
 );
+
+alter table public.institution_memberships
+  add constraint institution_memberships_department_scope_fk
+  foreign key (department_id, institution_id)
+  references public.departments(id, institution_id)
+  on delete restrict;
 
 create table if not exists public.training_programs (
   id uuid primary key default gen_random_uuid(),
@@ -128,7 +139,11 @@ create table if not exists public.training_programs (
   is_active boolean not null default true,
   created_at timestamptz not null default now(),
   check (graduation_year_number between 1 and duration_years),
-  unique (institution_id, department_id, name)
+  unique (institution_id, department_id, name),
+  unique (id, institution_id),
+  foreign key (department_id, institution_id)
+    references public.departments(id, institution_id)
+    on delete restrict
 );
 
 create table if not exists public.specializations (
@@ -139,7 +154,14 @@ create table if not exists public.specializations (
   name text not null,
   is_active boolean not null default true,
   created_at timestamptz not null default now(),
-  unique (institution_id, department_id, training_program_id, name)
+  unique (institution_id, department_id, training_program_id, name),
+  unique (id, institution_id, department_id, training_program_id),
+  foreign key (department_id, institution_id)
+    references public.departments(id, institution_id)
+    on delete restrict,
+  foreign key (training_program_id, institution_id)
+    references public.training_programs(id, institution_id)
+    on delete restrict
 );
 
 create table if not exists public.academic_years (
@@ -151,7 +173,8 @@ create table if not exists public.academic_years (
   is_active boolean not null default false,
   created_at timestamptz not null default now(),
   check (starts_on is null or ends_on is null or starts_on < ends_on),
-  unique (institution_id, label)
+  unique (institution_id, label),
+  unique (id, institution_id)
 );
 
 create table if not exists public.graduation_cohorts (
@@ -171,7 +194,20 @@ create table if not exists public.graduation_cohorts (
   closed_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  unique (institution_id, academic_year_id, training_program_id, specialization_id, name)
+  unique (institution_id, academic_year_id, training_program_id, specialization_id, name),
+  unique (id, institution_id),
+  foreign key (department_id, institution_id)
+    references public.departments(id, institution_id)
+    on delete restrict,
+  foreign key (training_program_id, institution_id)
+    references public.training_programs(id, institution_id)
+    on delete restrict,
+  foreign key (specialization_id, institution_id, department_id, training_program_id)
+    references public.specializations(id, institution_id, department_id, training_program_id)
+    on delete restrict,
+  foreign key (academic_year_id, institution_id)
+    references public.academic_years(id, institution_id)
+    on delete restrict
 );
 
 create table if not exists public.academic_groups (
@@ -180,7 +216,11 @@ create table if not exists public.academic_groups (
   cohort_id uuid not null references public.graduation_cohorts(id) on delete cascade,
   name text not null,
   created_at timestamptz not null default now(),
-  unique (cohort_id, name)
+  unique (cohort_id, name),
+  unique (id, institution_id),
+  foreign key (cohort_id, institution_id)
+    references public.graduation_cohorts(id, institution_id)
+    on delete cascade
 );
 
 -- Imported student records may exist before the student activates an account.
@@ -192,9 +232,20 @@ create table if not exists public.student_profiles (
   full_name text not null,
   institutional_email text,
   department_id uuid not null references public.departments(id) on delete restrict,
+  training_program_id uuid not null references public.training_programs(id) on delete restrict,
   specialization_id uuid not null references public.specializations(id) on delete restrict,
   created_at timestamptz not null default now(),
-  unique (institution_id, student_number)
+  unique (institution_id, student_number),
+  unique (id, institution_id),
+  foreign key (department_id, institution_id)
+    references public.departments(id, institution_id)
+    on delete restrict,
+  foreign key (training_program_id, institution_id)
+    references public.training_programs(id, institution_id)
+    on delete restrict,
+  foreign key (specialization_id, institution_id, department_id, training_program_id)
+    references public.specializations(id, institution_id, department_id, training_program_id)
+    on delete restrict
 );
 
 create unique index if not exists student_profiles_institution_user_unique
@@ -209,7 +260,11 @@ create table if not exists public.supervisor_profiles (
   academic_title text,
   is_active boolean not null default true,
   created_at timestamptz not null default now(),
-  unique (institution_id, user_id)
+  unique (institution_id, user_id),
+  unique (id, institution_id),
+  foreign key (department_id, institution_id)
+    references public.departments(id, institution_id)
+    on delete restrict
 );
 
 create table if not exists public.cohort_enrollments (
@@ -221,7 +276,17 @@ create table if not exists public.cohort_enrollments (
   status public.enrollment_status not null default 'imported',
   eligibility_confirmed_at timestamptz,
   created_at timestamptz not null default now(),
-  unique (cohort_id, student_profile_id)
+  unique (cohort_id, student_profile_id),
+  unique (id, institution_id),
+  foreign key (cohort_id, institution_id)
+    references public.graduation_cohorts(id, institution_id)
+    on delete cascade,
+  foreign key (student_profile_id, institution_id)
+    references public.student_profiles(id, institution_id)
+    on delete restrict,
+  foreign key (group_id, institution_id)
+    references public.academic_groups(id, institution_id)
+    on delete set null
 );
 
 create table if not exists public.thesis_projects (
@@ -233,7 +298,13 @@ create table if not exists public.thesis_projects (
   research_field text,
   status public.thesis_status not null default 'proposal',
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  foreign key (enrollment_id, institution_id)
+    references public.cohort_enrollments(id, institution_id)
+    on delete restrict,
+  foreign key (supervisor_profile_id, institution_id)
+    references public.supervisor_profiles(id, institution_id)
+    on delete set null
 );
 
 create table if not exists public.audit_logs (
