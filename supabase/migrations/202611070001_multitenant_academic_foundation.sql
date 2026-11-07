@@ -691,7 +691,8 @@ using (
   )
 )
 with check (
-  exists (
+  granted_by = auth.uid()
+  and exists (
     select 1
     from public.institution_memberships im
     where im.id = membership_id
