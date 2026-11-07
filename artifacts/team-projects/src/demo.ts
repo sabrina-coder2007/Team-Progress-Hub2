@@ -1,6 +1,12 @@
 
 export type UiLanguage = 'en' | 'fr' | 'ar';
-export type Role = 'student' | 'supervisor' | 'department' | 'central';
+
+export type Role =
+  | 'student'
+  | 'supervisor'
+  | 'department'
+  | 'central';
+
 export type RolePermission =
   | 'proposal'
   | 'review'
@@ -90,14 +96,21 @@ export type DemoStore = {
   rolePermissions: Record<Role, RolePermission[]>;
 };
 
+// --------------------------------------------------
+// Leeder institution configuration
+// --------------------------------------------------
+
 export const institutionId = 'ensb-bouzareah';
+
 export const departmentId = 'dept-arabic-literature';
+
 export const currentStudentId = 'student-demo-01';
 
 export const institutionName =
   'المدرسة العليا للأساتذة ببوزريعة - الشيخ مبارك بن محمد إبراهيمي الميلي الجزائري';
 
-export const departmentName = 'قسم اللغة العربية وآدابها';
+export const departmentName =
+  'قسم اللغة العربية وآدابها';
 
 export const specializations = [
   'الأدب العربي',
@@ -105,6 +118,10 @@ export const specializations = [
   'اللسانيات التطبيقية',
   'تعليمية اللغة العربية',
 ];
+
+// --------------------------------------------------
+// Review workflow
+// --------------------------------------------------
 
 export const workflowSeed: DemoStore['workflow'] = [
   {
@@ -123,6 +140,11 @@ export const workflowSeed: DemoStore['workflow'] = [
     role: 'central',
   },
 ];
+
+// --------------------------------------------------
+// Demo database
+// All identities below are fictional demo identities.
+// --------------------------------------------------
 
 export const seedStore: DemoStore = {
   profiles: [
@@ -162,7 +184,7 @@ export const seedStore: DemoStore = {
       title: 'Lecturer',
     },
     {
-      id: 'dept-admin',
+      id: 'department-admin-demo',
       name: 'Department Admin Demo',
       email: 'department@leeder.demo',
       role: 'department',
@@ -173,9 +195,9 @@ export const seedStore: DemoStore = {
       academicYear: '2026–2027',
     },
     {
-      id: 'central-admin',
-      name: 'Leeder Initial Setup',
-      email: 'setup@leeder.demo',
+      id: 'central-admin-demo',
+      name: 'Central Admin Demo',
+      email: 'central@leeder.demo',
       role: 'central',
       state: 'demo-approved',
       institutionId,
@@ -215,7 +237,10 @@ export const seedStore: DemoStore = {
     },
   ],
 
-  years: ['2025–2026', '2026–2027'],
+  years: [
+    '2025–2026',
+    '2026–2027',
+  ],
 
   specializations,
 
@@ -227,7 +252,10 @@ export const seedStore: DemoStore = {
 
   departmentSettings: {
     [departmentId]: {
-      years: ['2025–2026', '2026–2027'],
+      years: [
+        '2025–2026',
+        '2026–2027',
+      ],
       specializations,
       templates: [
         'قالب مقترح بحث',
@@ -236,6 +264,10 @@ export const seedStore: DemoStore = {
       ],
     },
   },
+
+  // ------------------------------------------------
+  // Sample research proposals
+  // ------------------------------------------------
 
   proposals: [
     {
@@ -332,6 +364,10 @@ export const seedStore: DemoStore = {
   drafts: {},
   reviewerNotes: {},
 
+  // ------------------------------------------------
+  // Role permissions
+  // ------------------------------------------------
+
   rolePermissions: {
     student: ['proposal', 'editor'],
     supervisor: ['review'],
@@ -340,9 +376,20 @@ export const seedStore: DemoStore = {
   },
 };
 
+// --------------------------------------------------
+// Storage configuration
+// A new key prevents loading the old demo identities.
+// --------------------------------------------------
+
+export const STORAGE_KEY = 'leeder-demo-v2';
+
+// --------------------------------------------------
+// Load demo data
+// --------------------------------------------------
+
 export function loadStore(): DemoStore {
   try {
-    const saved = localStorage.getItem('leeder-demo-v1');
+    const saved = localStorage.getItem(STORAGE_KEY);
 
     if (!saved) {
       return structuredClone(seedStore);
@@ -350,24 +397,55 @@ export function loadStore(): DemoStore {
 
     const value = JSON.parse(saved) as Partial<DemoStore>;
 
+    // Use the new demo identities for seeded profiles.
+    const savedProfiles = value.profiles || [];
+
+    const profiles = seedStore.profiles.map((seedProfile) => {
+      const savedProfile = savedProfiles.find(
+        (profile) => profile.id === seedProfile.id
+      );
+
+      return savedProfile
+        ? {
+            ...savedProfile,
+            name: seedProfile.name,
+            email: seedProfile.email,
+          }
+        : { ...seedProfile };
+    });
+
+    // Keep proposal data while ensuring demo owner names stay fictional.
+    const savedProposals = value.proposals || [];
+
+    const proposals = seedStore.proposals.map((seedProposal) => {
+      const savedProposal = savedProposals.find(
+        (proposal) => proposal.id === seedProposal.id
+      );
+
+      return savedProposal
+        ? {
+            ...savedProposal,
+            ownerName: seedProposal.ownerName,
+          }
+        : structuredClone(seedProposal);
+    });
+
     return {
       ...structuredClone(seedStore),
       ...value,
 
-      profiles: value.profiles || structuredClone(seedStore.profiles),
+      profiles,
 
-      institutions:
-        value.institutions || structuredClone(seedStore.institutions),
+      institutions: structuredClone(seedStore.institutions),
 
-      proposals:
-        value.proposals || structuredClone(seedStore.proposals),
+      proposals,
 
       workflow:
         value.workflow || structuredClone(seedStore.workflow),
 
       departmentWorkflows:
         value.departmentWorkflows ||
-        { [departmentId]: value.workflow || structuredClone(seedStore.workflow) },
+        structuredClone(seedStore.departmentWorkflows),
 
       departmentSettings:
         value.departmentSettings ||
@@ -382,7 +460,8 @@ export function loadStore(): DemoStore {
           [currentStudentId]: value.draft || '',
         },
     };
-  } catch {
+  } catch (error) {
+    console.error('Unable to load Leeder demo data:', error);
     return structuredClone(seedStore);
   }
 }
