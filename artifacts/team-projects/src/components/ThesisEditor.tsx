@@ -342,8 +342,8 @@ export function ThesisEditor({ draft, onDraftChange, title, researchLanguage, st
     while ((match = duplicatePunctuation.exec(plainDraft))) addIssue('إملاء وترقيم', 'تكرار علامة الترقيم', match[0], match[1], 'تكرار علامة الترقيم نفسها متتابعة غالبًا غير لازم في الكتابة الأكاديمية.', 'قواعد الترقيم والكتابة الأكاديمية.');
     const missingSpace = /([،؛.!؟:])(?=[\p{L}\p{N}])/gu;
     while ((match = missingSpace.exec(plainDraft))) addIssue('تنسيق', 'احتمال غياب مسافة بعد علامة الترقيم', plainDraft.slice(match.index, match.index + 2), match[1] + ' ' + plainDraft[match.index + 1], 'تُفصل العبارة التالية بمسافة بعد علامة الترقيم.', 'قواعد تحرير النصوص.');
-    const repeatedWord = /\b([\p{L}\p{M}]{2,})\s+\1\b/giu;
-    while ((match = repeatedWord.exec(plainDraft))) addIssue('تركيب', 'احتمال تكرار كلمة متتاليتين', match[0], match[1], 'قد يكون التكرار غير مقصود؛ راجع السياق قبل اعتماد التصحيح.', 'مراجعة تحريرية للسياق.', 'متوسطة');
+    const repeatedWord = /(^|[^\p{L}\p{M}])([\p{L}\p{M}]{2,})\s+\2(?=$|[^\p{L}\p{M}])/giu;
+    while ((match = repeatedWord.exec(plainDraft))) addIssue('تركيب', 'احتمال تكرار كلمة متتاليتين', match[0], match[1] + match[2], 'قد يكون التكرار غير مقصود؛ راجع السياق قبل اعتماد التصحيح.', 'مراجعة تحريرية للسياق.', 'متوسطة');
     setReviewIssues(issues);
     setReviewRan(true);
   };
