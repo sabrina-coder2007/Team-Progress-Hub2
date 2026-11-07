@@ -5,7 +5,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select extensions.plan(34);
+select extensions.plan(36);
 
 -- Every core table must exist and have RLS enabled.
 select extensions.ok(
