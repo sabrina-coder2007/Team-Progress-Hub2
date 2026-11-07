@@ -1,4 +1,4 @@
-import { type FormEvent, type ReactNode, useEffect, useRef, useState } from 'react';
+import { type FormEvent, type ReactNode, useEffect, useState } from 'react';
 import { Link, Route, Switch, useLocation } from 'wouter';
 import { ArrowRight, BookOpen, Check, ChevronRight, ClipboardCheck, FilePenLine, FileText, Languages, LockKeyhole, Menu, Save, UserRound, Bell, AlignLeft, Heading1, Heading2, Plus, Trash2, X, Building2, Users, Settings2, CircleCheck, CircleAlert, GraduationCap } from 'lucide-react';
 import { currentStudentId, departmentId, loadStore, type DemoStore, type Profile, type Proposal, type ProposalStatus, type Role, type RolePermission, type UiLanguage } from './demo';
@@ -137,7 +137,6 @@ function App() {
   const [adminInstitutionId, setAdminInstitutionId] = useState('oran1');
   const [adminDepartmentName, setAdminDepartmentName] = useState('Faculty of Social Sciences');
   const [draft, setDraft] = useState(() => store.drafts?.[localStorage.getItem('leeder-student-preview') || currentStudentId] || defaultDraftText);
-  const editorRef = useRef<HTMLTextAreaElement>(null);
   const t = (key: string) => words[language][key] || words.en[key] || key;
   const hasPermission = (permission: RolePermission) => store.rolePermissions[role]?.includes(permission) || false;
   const studentProfile = store.profiles.find(profile => profile.id === activeStudentId) || store.profiles.find(profile => profile.role === 'student') || store.profiles[0];
@@ -457,9 +456,10 @@ function App() {
 
   const editorPage = () => {
     const unlocked=workflowComplete(studentProposal)&&studentProposal.status==='Approved';
-    const saveWritingDraft=()=>{updateStore(old=>({...old,draft,drafts:{...old.drafts,[studentProfile.id]:draft}}));setToast(t('draftSaved'));};
+    const saveWritingDraft=(content:string)=>{updateStore(old=>({...old,draft:content,drafts:{...old.drafts,[studentProfile.id]:content}}));setDraft(content);setToast(t('draftSaved'));};
+    const updateWritingDraft=(content:string)=>{setDraft(content);updateStore(old=>({...old,draft:content,drafts:{...old.drafts,[studentProfile.id]:content}}));};
     return <main className="page-wrap fade-in">{notice()}{pageHead(`03 / ${t('stepWriting')}`,t('editorTitle'),t('editorDesc'))}
-      {!unlocked?<div className="panel panel-pad locked-panel"><div className="locked"><LockKeyhole size={17}/><div><strong>{t('lockedTitle')}.</strong> {t('lockedDesc')}</div></div><div className="locked-content"><div className="avatar locked-avatar"><BookOpen size={22}/></div><h2>{t('editorTitle')}</h2><p>{t('lockedDesc')}</p><div className="callout">{t('currentStep')}: {studentProposal.steps.find(step=>!step.approved)?.label||t('completeWorkflow')}</div><button className="btn btn-primary" onClick={()=>navigateTo('/dashboard')} style={{marginTop:18}}>{t('back')} <ArrowRight size={14}/></button></div></div>:<><ThesisEditor draft={draft} onDraftChange={setDraft} title={studentProposal.title} researchLanguage={studentProposal.researchLanguage} studentId={studentProfile.id} onSave={saveWritingDraft}/><div className="thesis-status-row"><section className="panel panel-pad"><div className="meta-label">{t('currentStatus')}</div><div style={{marginTop:9}}>{statusBadge(studentProposal.status)}</div><p className="section-caption" style={{marginTop:12}}>{t('finalApproval')}</p></section></div></>}
+      {!unlocked?<div className="panel panel-pad locked-panel"><div className="locked"><LockKeyhole size={17}/><div><strong>{t('lockedTitle')}.</strong> {t('lockedDesc')}</div></div><div className="locked-content"><div className="avatar locked-avatar"><BookOpen size={22}/></div><h2>{t('editorTitle')}</h2><p>{t('lockedDesc')}</p><div className="callout">{t('currentStep')}: {studentProposal.steps.find(step=>!step.approved)?.label||t('completeWorkflow')}</div><button className="btn btn-primary" onClick={()=>navigateTo('/dashboard')} style={{marginTop:18}}>{t('back')} <ArrowRight size={14}/></button></div></div>:<><ThesisEditor draft={draft} onDraftChange={updateWritingDraft} title={studentProposal.title} researchLanguage={studentProposal.researchLanguage} studentId={studentProfile.id} onSave={saveWritingDraft}/><div className="thesis-status-row"><section className="panel panel-pad"><div className="meta-label">{t('currentStatus')}</div><div style={{marginTop:9}}>{statusBadge(studentProposal.status)}</div><p className="section-caption" style={{marginTop:12}}>{t('finalApproval')}</p></section></div></>}
     </main>;
   };
 
