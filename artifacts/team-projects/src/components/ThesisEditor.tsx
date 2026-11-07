@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AlignCenter, AlignLeft, AlignRight, Bold, BookMarked, BookOpen, Check, ChevronDown, FilePlus2, Heading1, Heading2, Italic, List, ListOrdered, Plus, Quote, Save, Search, Trash2, Underline, X } from 'lucide-react';
+import { AlignCenter, AlignLeft, AlignRight, Bold, BookMarked, BookOpen, Heading1, Heading2, Italic, List, ListOrdered, Plus, Quote, Save, Search, Trash2, Underline, X } from 'lucide-react';
 
 type Source = {
   id: string;
@@ -22,7 +22,7 @@ type Props = {
   title: string;
   researchLanguage: string;
   studentId: string;
-  onSave: () => void;
+  onSave: (content: string) => void;
 };
 
 const emptySource = (): Source => ({
@@ -284,7 +284,7 @@ export function ThesisEditor({ draft, onDraftChange, title, researchLanguage, st
           />
           <div className="thesis-paper-tip">{t.editorTip}</div>
         </div>
-        <div className="thesis-editor-footer"><span>{t.demoStorage}</span><button type="button" className="btn btn-teal" onClick={()=>{if(editor.current)onDraftChange(cleanHtml(editor.current.innerHTML));onSave();}}><Save size={15}/>{t.saved}</button></div>
+        <div className="thesis-editor-footer"><span>{t.demoStorage}</span><button type="button" className="btn btn-teal" onClick={()=>{if(editor.current)onDraftChange(cleanHtml(editor.current.innerHTML));onSave(editor.current ? cleanHtml(editor.current.innerHTML) : draft);}}><Save size={15}/>{t.saved}</button></div>
       </div>
     </div>
     <aside className="thesis-sidebar" dir={rtl?'rtl':'ltr'}>
