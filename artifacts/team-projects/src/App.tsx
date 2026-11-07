@@ -99,7 +99,9 @@ const departmentKey = (institutionId: string, name: string) => {
   const slug=encodeURIComponent(name.trim()).replace(/%/g,'').replace(/[^A-Za-z0-9]+/g,'-');
   return `dept-${institutionId}-${slug||'new'}`;
 };
-const defaultDraftText = 'Introduction\n\nThis research explores the role of digital learning practices in Algerian public universities. It begins by examining how students access learning resources and participate in blended courses.\n\nResearch focus\n\nThe study considers access, study habits and student engagement as connected dimensions of the learning experience.';
+const legacyDefaultDraftText = 'Introduction\n\nThis research explores the role of digital learning practices in Algerian public universities. It begins by examining how students access learning resources and participate in blended courses.\n\nResearch focus\n\nThe study considers access, study habits and student engagement as connected dimensions of the learning experience.';
+const defaultDraftText = '';
+const normalizeDraft = (value?: string) => value === legacyDefaultDraftText ? '' : value || '';
 const buildStudentDraft = (profile: Profile, workflow: DemoStore['workflow'], profiles: Profile[]): Proposal => ({
   id: `proposal-${profile.id}`,
   ownerId: profile.id,
@@ -136,7 +138,7 @@ function App() {
   const [newText, setNewText] = useState('');
   const [adminInstitutionId, setAdminInstitutionId] = useState('oran1');
   const [adminDepartmentName, setAdminDepartmentName] = useState('Faculty of Social Sciences');
-  const [draft, setDraft] = useState(() => store.drafts?.[localStorage.getItem('leeder-student-preview') || currentStudentId] || defaultDraftText);
+  const [draft, setDraft] = useState(() => normalizeDraft(store.drafts?.[localStorage.getItem('leeder-student-preview') || currentStudentId] ?? (localStorage.getItem('leeder-student-preview') === currentStudentId ? store.draft : undefined)));
   const t = (key: string) => words[language][key] || words.en[key] || key;
   const hasPermission = (permission: RolePermission) => store.rolePermissions[role]?.includes(permission) || false;
   const studentProfile = store.profiles.find(profile => profile.id === activeStudentId) || store.profiles.find(profile => profile.role === 'student') || store.profiles[0];
@@ -156,7 +158,7 @@ function App() {
   useEffect(() => { localStorage.setItem('leeder-student-preview', activeStudentId); }, [activeStudentId]);
   useEffect(() => {
     setForm(studentProposal);
-    setDraft(store.drafts[activeStudentId] || (activeStudentId === currentStudentId ? store.draft || defaultDraftText : defaultDraftText));
+    setDraft(normalizeDraft(store.drafts[activeStudentId] ?? (activeStudentId === currentStudentId ? store.draft : undefined)));
   }, [activeStudentId]);
   useEffect(() => {
     localStorage.setItem('leeder-language', language);
